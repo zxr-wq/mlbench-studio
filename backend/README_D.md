@@ -14,6 +14,7 @@
 | `tests/compare_decision_tree.py` | 决策树单个对照实验 |
 | `tests/run_all.py` | 三个算法 × 两个数据集的批量对照 |
 | `tests/param_study.py` | 参数敏感性实验（树数量 → 准确率 / 时间） |
+| `tests/test_tree_models.py` | 12 个单元测试（pytest，全部通过） |
 
 ## 2. 怎么跑
 
@@ -23,6 +24,9 @@
 .\.venv\Scripts\python.exe backend\tests\run_all.py       # 三个算法全量对照
 .\.venv\Scripts\python.exe backend\tests\param_study.py   # 参数敏感性实验
 ```
+
+单元测试：`.\.venv\Scripts\python.exe -m pytest backend\tests\test_tree_models.py -v`
+（12 passed，覆盖 Gini 正确性、树结构规范、随机森林必须复用自写树、GB loss 单调下降、接口签名等）
 
 ## 3. 当前实验结果（iris + wine，80/20、seed=42、分层抽样）
 
