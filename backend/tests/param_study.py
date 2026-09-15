@@ -1,7 +1,6 @@
-"""参数敏感性实验：树的数量对准确率 / 训练时间的影响（报告用）
+"""参数敏感性实验：树的数量对准确率与训练时间的影响
 
-运行方式（在 E:\\mlbench-studio 下）：
-    .\\.venv\\Scripts\\python.exe backend\\tests\\param_study.py
+运行：.\\.venv\\Scripts\\python.exe backend\\tests\\param_study.py
 """
 
 import os
@@ -59,12 +58,6 @@ def main():
               f"{t1 - t0:>12.4f}{loss:>12.4f}")
 
     print()
-    print("=" * 60)
-    print("结论要点（可直接写进报告）：")
-    print("  · 树数量增加，准确率通常先升后趋于平稳")
-    print("  · 训练时间随树数量近似线性增长")
-    print("  · 梯度提升的 loss 随迭代单调下降，说明每轮确实在补错")
-    print("=" * 60)
 
 
 if __name__ == "__main__":

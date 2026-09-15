@@ -1,7 +1,6 @@
-"""树模型单元测试（成员 D）
+"""树模型单元测试
 
-运行方式（在 E:\\mlbench-studio 下）：
-    .\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_tree_models.py -v
+运行：.\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_tree_models.py -v
 """
 
 import os

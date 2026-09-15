@@ -1,21 +1,15 @@
-"""随机森林（分类）— Scratch 自实现
+"""随机森林（分类）
 
-负责人：成员 D
-严格基于同目录下自己实现的 DecisionTree，不调用 sklearn 的树。
-
-核心三步：
-1. Bootstrap：有放回抽样，给每棵树一份略有不同的训练数据
-2. 随机特征：每棵树（或每次分叉）只看随机抽的一部分特征
-3. 投票：所有树各自预测，少数服从多数
+基于同目录自实现的 DecisionTree，未使用 sklearn 的树。
+成员 D 负责。
 """
 
 import numpy as np
 
-from models.scratch.decision_tree import DecisionTree, TreeNode
+from models.scratch.decision_tree import DecisionTree
 
 
 class RandomForest:
-    # TODO（B 交付框架后）：@register_model("random_forest") + class RandomForest(BaseModel)
 
     task_type = "classification"
 
@@ -23,7 +17,7 @@ class RandomForest:
                  min_samples_split=2, min_samples_leaf=1, random_state=42):
         self.n_estimators = n_estimators
         self.max_depth = max_depth
-        self.max_features = max_features      # None 时自动取 sqrt(特征数)
+        self.max_features = max_features
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
         self.random_state = random_state
@@ -46,9 +40,7 @@ class RandomForest:
         self.feature_subsets = []
 
         for _ in range(self.n_estimators):
-            # 1. Bootstrap：有放回抽样，抽同样多个
             idx = rng.integers(0, n_samples, size=n_samples)
-            # 2. 随机特征子集
             feats = rng.choice(n_features, size=max_features, replace=False)
 
             tree = DecisionTree(
@@ -66,19 +58,16 @@ class RandomForest:
     def predict(self, X):
         X = np.asarray(X, dtype=float)
         if not self.trees:
-            raise RuntimeError("模型还没训练，请先调用 fit()")
+            raise RuntimeError("模型未训练")
 
-        # 每棵树对全部样本给出预测，形状 (树数, 样本数)
         all_preds = np.array([
             tree.predict(X[:, feats])
             for tree, feats in zip(self.trees, self.feature_subsets)
         ])
 
-        # 3. 多数投票：逐列统计哪个类别票最多
         out = np.empty(X.shape[0], dtype=int)
         for j in range(X.shape[0]):
-            counts = np.bincount(all_preds[:, j], minlength=self.n_classes_)
-            out[j] = int(np.argmax(counts))
+            out[j] = np.argmax(np.bincount(all_preds[:, j], minlength=self.n_classes_))
         return out
 
     def get_params(self):
@@ -92,7 +81,6 @@ class RandomForest:
         }
 
     def get_visualization_data(self):
-        """返回树数量、每棵树的深度，以及特征重要性（可用于前端柱状图）"""
         if not self.trees:
             return {}
         return {
@@ -102,7 +90,6 @@ class RandomForest:
             "feature_names": self.feature_names,
         }
 
-    # ------------------------------------------------------------------
     def _depth(self, node):
         if node is None:
             return 0
@@ -111,7 +98,6 @@ class RandomForest:
         return 1 + max(self._depth(node.left), self._depth(node.right))
 
     def _feature_importances(self):
-        """用"每个特征被用作切分点时带来了多少纯度提升"累加得到重要性"""
         n_features = max(int(np.max(feats)) for feats in self.feature_subsets) + 1 \
             if self.feature_subsets else 0
         importances = np.zeros(n_features)
@@ -119,16 +105,13 @@ class RandomForest:
         for tree, feats in zip(self.trees, self.feature_subsets):
             self._walk(tree.root, feats, importances)
 
-        total = importances.sum()
-        if total > 0:
-            importances = importances / total
+        if importances.sum() > 0:
+            importances = importances / importances.sum()
         return importances.tolist()
 
     def _walk(self, node, feats, importances):
         if node is None or node.left is None or node.right is None:
             return
-        real_feature = feats[node.feature]
-        # 该节点上的样本数作为权重，越靠上层权重越大
-        importances[real_feature] += node.samples
+        importances[feats[node.feature]] += node.samples
         self._walk(node.left, feats, importances)
         self._walk(node.right, feats, importances)

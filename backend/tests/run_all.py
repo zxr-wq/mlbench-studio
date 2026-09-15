@@ -1,7 +1,6 @@
-"""一次性跑完 D 负责的三个算法的 Scratch / sklearn 对照
+"""三个算法的 Scratch / sklearn 批量对照
 
-运行方式（在 E:\\mlbench-studio 下）：
-    .\\.venv\\Scripts\\python.exe backend\\tests\\run_all.py
+运行：.\\.venv\\Scripts\\python.exe backend\\tests\\run_all.py
 """
 
 import os
@@ -33,21 +32,18 @@ def main():
 
         results = []
 
-        # ---- 决策树 ----
         results.append(compare_scratch_sklearn(
             DecisionTree(max_depth=3),
             DecisionTreeClassifier(max_depth=3, random_state=42),
             X, y, model_name="decision_tree", dataset_name=name,
         ))
 
-        # ---- 随机森林 ----
         results.append(compare_scratch_sklearn(
             RandomForest(n_estimators=50, max_depth=5, random_state=42),
             RandomForestClassifier(n_estimators=50, max_depth=5, random_state=42),
             X, y, model_name="random_forest", dataset_name=name,
         ))
 
-        # ---- 梯度提升 ----
         results.append(compare_scratch_sklearn(
             GradientBoosting(n_estimators=50, learning_rate=0.1, max_depth=3),
             GradientBoostingClassifier(n_estimators=50, learning_rate=0.1,
@@ -60,7 +56,6 @@ def main():
             if print_comparison(res):
                 passed += 1
 
-    # ---- 可视化数据自检 ----
     print("\n" + "=" * 52)
     print("可视化数据（给前端 A 用）")
     print("=" * 52)
