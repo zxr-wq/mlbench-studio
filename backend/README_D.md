@@ -1,61 +1,77 @@
-# D 的开工指南（树模型与集成学习）
+# 成员 D 交付说明：树模型与集成学习
 
-## 1. 环境（已配好，在 E 盘）
+负责人：D　｜　分支：`tree-ensemble-models`
 
-- 项目目录：`E:\mlbench-studio`
-- Python 虚拟环境：`E:\mlbench-studio\.venv`（numpy 2.5.3 + scikit-learn 1.9.1）
-- 当前分支：`tree-ensemble-models`
+## 1. 已完成的文件
 
-以后所有命令都在 `E:\mlbench-studio` 目录下执行，并且**用 .venv 里的 python**：
+| 文件 | 内容 |
+|---|---|
+| `models/scratch/decision_tree.py` | 决策树 CART 分类（Gini + 递归划分 + 树结构导出） |
+| `models/scratch/random_forest.py` | 随机森林（Bootstrap + 随机特征 + 投票 + 特征重要性） |
+| `models/scratch/gradient_boosting.py` | 梯度提升（softmax + 残差 + 牛顿步长叶子 + loss 曲线） |
+| `tests/verification.py` | **全组通用的 Scratch ↔ sklearn 对照验证模板** |
+| `tests/check_env.py` | 环境自检 |
+| `tests/compare_decision_tree.py` | 决策树单个对照实验 |
+| `tests/run_all.py` | 三个算法 × 两个数据集的批量对照 |
+| `tests/param_study.py` | 参数敏感性实验（树数量 → 准确率 / 时间） |
 
-```powershell
-cd E:\mlbench-studio
-.\.venv\Scripts\python.exe backend\tests\check_env.py              # 环境自检
-.\.venv\Scripts\python.exe backend\tests\compare_decision_tree.py  # 跟 sklearn 对照
-```
+## 2. 怎么跑
 
-VSCode 里按 `Ctrl+Shift+P` → `Python: Select Interpreter` → 选 `E:\mlbench-studio\.venv\Scripts\python.exe`，
-之后直接点右上角运行按钮即可。
-
-## 2. 现在要做的唯一一件事
-
-打开 `backend/models/scratch/decision_tree.py`，把两个 TODO 填上：
-
-- **TODO 1 `_gini()`**：算不纯度，3 行（公式写在注释里）
-- **TODO 2 `_best_split()`**：遍历所有特征和阈值，找加权不纯度最小的那一刀
-
-填完跑：
+在 `E:\mlbench-studio` 目录下：
 
 ```powershell
-.\.venv\Scripts\python.exe backend\tests\compare_decision_tree.py
+.\.venv\Scripts\python.exe backend\tests\run_all.py       # 三个算法全量对照
+.\.venv\Scripts\python.exe backend\tests\param_study.py   # 参数敏感性实验
 ```
 
-看到「通过，你的实现和 sklearn 基本一致 ✅」就说明决策树写对了，
-iris 上的合理水平是 **0.95 左右**（sklearn 也是这个数）。
+## 3. 当前实验结果（iris + wine，80/20、seed=42、分层抽样）
 
-## 3. 顺序
+| 模型 | 数据集 | Scratch | sklearn | 差值 | 预测一致率 |
+|---|---|---|---|---|---|
+| decision_tree | iris | 0.9667 | 0.9667 | 0.0000 | 1.0000 |
+| decision_tree | wine | 0.9444 | 0.9444 | 0.0000 | 0.9444 |
+| random_forest | iris | 0.9000 | 0.9000 | 0.0000 | 1.0000 |
+| random_forest | wine | 0.9722 | 1.0000 | 0.0278 | 0.9722 |
+| gradient_boosting | iris | 0.9333 | 0.9667 | 0.0333 | 0.9667 |
+| gradient_boosting | wine | 0.9722 | 0.9444 | 0.0278 | 0.9722 |
 
-1. 决策树跑通（当前步骤）
-2. 随机森林（复用自己写的决策树，禁止调用 sklearn 的树）
-3. 梯度提升（记录 loss_history）
-4. 统一 Scratch / sklearn 验证模板（你负责给全组用）
+**6/6 项通过**（判定标准：指标差 < 0.05 且预测一致率 > 0.9）
 
-## 4. 规范速查（2026-09-15 版）
+## 4. 参数敏感性（wine）
 
-- 名字：`decision_tree` / `random_forest` / `gradient_boosting`
-- `task_type = "classification"`
-- 四个方法：`fit(X, y=None)`、`predict(X)`、`get_params()`、`get_visualization_data()`
-- 参数：决策树 `{max_depth, min_samples_split}`；随机森林 `{n_estimators, max_depth}`
-- 树结构导出格式（规范第 14 条）：`{feature, threshold, samples, value, left, right}`，叶子 `left=right=None`
-- 正式实验：80/20 划分、`random_state=42`、分类 `stratify=y`
+随机森林：10 棵 → 0.9444（0.09s），30 棵 → 0.9722（0.26s），100 棵 → 0.9722（0.86s）
+梯度提升：10 轮 → 0.9444（loss 0.117），50 轮 → 0.9722（loss 0.0001），100 轮 → 0.9722（10.8s）
 
-## 5. 推送前
+结论：树数量超过约 30 后准确率趋于平稳，训练时间近似线性增长。
 
-```powershell
-git add .
-git commit -m "feat: 完成决策树 scratch 实现"
-git push -u origin tree-ensemble-models
+## 5. 给全组的验证模板怎么用
+
+其他人照抄这段即可：
+
+```python
+from verification import compare_scratch_sklearn, print_comparison
+
+res = compare_scratch_sklearn(
+    scratch_model=MyKNN(k=5),
+    sklearn_model=KNeighborsClassifier(n_neighbors=5),
+    X=X, y=y,
+    model_name="knn",
+    dataset_name="iris",
+)
+print_comparison(res)
 ```
 
-如果 push 报 403，说明你还没被加为仓库协作者——让组长（仓库所有者 zxr-wq）在
-GitHub 仓库 Settings → Collaborators 里邀请你，或者你 fork 一份到自己账号再提 PR。
+返回结构已按规范第 12 条对齐（`metrics` / `training_time` / `inference_time`）。
+
+## 6. 给前端 A 的可视化数据
+
+| 模型 | `get_visualization_data()` 返回 |
+|---|---|
+| 决策树 | `{feature, threshold, samples, value, left, right}` 递归结构（规范第 14 条） |
+| 随机森林 | `{n_estimators, tree_depths, feature_importances, feature_names}` |
+| 梯度提升 | `{loss_history, n_estimators, learning_rate}` |
+
+## 7. 后续
+
+- 等 B 的 `BaseModel` / `register_model` 到位后，三个类各加一行装饰器 + 改继承即可
+- 报告章节（D 负责）：三种算法原理 + 上面的对照表 + 参数敏感性分析
