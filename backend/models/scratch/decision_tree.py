@@ -89,7 +89,9 @@ class DecisionTree:
         直观理解：全都是同一类 → p=[1.0] → 1-1 = 0（最纯）
                   两类各一半   → p=[0.5,0.5] → 1-0.5 = 0.5（最乱）
         """
-        raise NotImplementedError("TODO 1：请实现 _gini()")
+        counts = np.bincount(y, minlength=self.n_classes_)
+        p = counts / counts.sum()
+        return 1.0 - np.sum(p ** 2)
 
     def _best_split(self, X, y):
         """TODO 2：找出"分完之后最干净"的那个特征和切分点
@@ -108,7 +110,24 @@ class DecisionTree:
                         记录 best_feature = j, best_threshold = t
             return best_feature, best_threshold
         """
-        raise NotImplementedError("TODO 2：请实现 _best_split()")
+        best_score = float("inf")
+        best_feature, best_threshold = None, None
+        n_samples, n_features = X.shape
+
+        for j in range(n_features):
+            for t in np.unique(X[:, j]):
+                left = X[:, j] <= t
+                if left.sum() == 0 or (~left).sum() == 0:
+                    continue
+                score = (
+                    left.sum() * self._gini(y[left])
+                    + (~left).sum() * self._gini(y[~left])
+                ) / n_samples
+                if score < best_score:
+                    best_score = score
+                    best_feature, best_threshold = j, t
+
+        return best_feature, best_threshold
 
     # ------------------------------------------------------------------
     # 下面的"管道代码"已经写好，你读懂即可，不用改
