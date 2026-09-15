@@ -309,6 +309,53 @@ button.sheet-row:hover { background: #f0f0eb; }
 .command-results a:hover { background: #ecece7; }
 .command-results small { color: #9a9b96; font-size: 7px; }
 
+/* ---------- 统一对比 Benchmark ---------- */
+.benchmark-actions { display: flex; gap: 8px; }
+.benchmark-strip { border-top: 0; }
+.benchmark-progress { margin-bottom: 22px; font-size: 9px; }
+.benchmark-progress > span { color: #646661; }
+.matrix-hint { color: #a0a19c; font-size: 8px; }
+.benchmark-matrix { padding: 4px; }
+.benchmark-row { display: grid; grid-template-columns: 1.25fr repeat(4, 1fr); align-items: center; min-height: 62px; padding: 0 13px; border-top: 1px solid #e1e1dc; }
+.benchmark-row.benchmark-head { min-height: 38px; border-top: 0; color: #999a95; font-size: 7px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; }
+.benchmark-model b { display: block; font-size: 10px; }
+.benchmark-model small { display: block; margin-top: 3px; color: #8b8c87; font-size: 8px; }
+.benchmark-cell { display: grid; justify-items: start; gap: 3px; padding: 8px 10px; border-left: 1px solid #e6e6e0; }
+.benchmark-cell b { font-family: Georgia, serif; font-size: 15px; font-weight: 400; }
+.benchmark-cell small { color: #9a9b96; font-size: 7.5px; }
+.cell-running { color: #b07a2c; }
+.cell-failed { color: #a15454; }
+.cell-idle { color: #b9bab4; }
+.pca-section { margin-top: 40px; }
+.pca-controls { display: flex; gap: 8px; }
+.pca-controls select { height: 32px; padding: 0 30px 0 9px; border: 1px solid #d7d7d1; border-radius: 4px; color: #666864; background: #fafaf7; font-size: 9px; }
+.pca-progress { margin-bottom: 16px; }
+.pca-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.pca-card { padding: 17px; border: 1px solid #d8d8d2; background: #fff; }
+.pca-label { display: block; margin-bottom: 12px; color: #646661; font-size: 9px; font-weight: 600; }
+.variance-chart { width: 100%; height: 150px; border-bottom: 1px solid #e1e1dc; }
+.variance-bar { fill: rgba(232, 93, 63, .35); }
+.cumulative-line { fill: none; stroke: #28684f; stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.accuracy-line { fill: none; stroke: var(--accent); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.accuracy-dot { fill: #fff; stroke: var(--accent); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.pca-card small { display: block; margin-top: 9px; color: #969792; font-size: 7.5px; }
+.curve-table { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; }
+.curve-table span { display: flex; gap: 5px; align-items: baseline; font-size: 8px; }
+.curve-table b { font-family: Georgia, serif; font-size: 10px; font-weight: 400; }
+.curve-table small { margin: 0; }
+
+/* ---------- 实验详情动态评估 ---------- */
+.confusion-axis { display: flex; justify-content: space-between; margin-bottom: 7px; color: #a0a19c; font-size: 7px; letter-spacing: .4px; }
+.confusion-grid.dynamic span { aspect-ratio: 1; border-radius: 2px; font-size: 11px; }
+.dynamic-heat { color: #5a5c58; }
+.confusion-legend { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 8px; color: #858782; font-size: 7.5px; }
+.perclass-sheet { margin-top: 20px; border-top: 1px solid #dcdcd6; }
+.perclass-row { display: grid; grid-template-columns: 1.2fr .9fr .9fr .9fr .7fr; align-items: center; min-height: 37px; padding: 0 4px; border-bottom: 1px solid #e6e6e0; font-size: 9px; color: #61635f; }
+.perclass-head { min-height: 30px; color: #999a95; font-size: 7px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+.parameter-panel .parameter-note { grid-column: 1 / -1; margin: 0; color: #6b6d68; font-size: 9px; line-height: 1.7; }
+.choice-grid button.not-ready { cursor: not-allowed; opacity: .42; }
+
+
 @media (max-width: 1200px) {
   .algorithm-grid { grid-template-columns: repeat(2, 1fr); }
   .builder-layout { grid-template-columns: minmax(600px, 1fr) 270px; }

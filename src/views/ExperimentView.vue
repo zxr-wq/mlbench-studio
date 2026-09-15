@@ -12,7 +12,14 @@ const { defaultConfig, isRunning, progress, lastMessage, runExperiment } = useLa
 const step = ref(1)
 const config = reactive<ExperimentConfig>({ ...defaultConfig, metrics: [...defaultConfig.metrics] })
 
-const availableModels = algorithms.filter((item) => ['svm', 'decision_tree', 'knn', 'naive_bayes'].includes(item.id))
+const implementedModels = new Set(['svm', 'kmeans'])
+const availableModels = algorithms
+const preprocessingLabels: Record<string, string> = {
+  standard_scaler: 'Standard Scaler',
+  minmax_scaler: 'Min-Max Scaler',
+  pca_0.95: 'PCA · 95% 方差',
+  none: '不处理',
+}
 
 function toggleMetric(metric: string) {
   if (config.metrics.includes(metric)) {
@@ -29,7 +36,7 @@ onMounted(() => {
   if (typeof route.query.dataset === 'string' && datasets.some((item) => item.id === route.query.dataset)) {
     config.dataset = route.query.dataset
   }
-  if (typeof route.query.model === 'string' && availableModels.some((item) => item.id === route.query.model)) {
+  if (typeof route.query.model === 'string' && implementedModels.has(route.query.model)) {
     config.model = route.query.model
     step.value = 2
   }
@@ -62,16 +69,23 @@ onMounted(() => {
         </div>
         <div class="inline-fields">
           <label><span>划分策略</span><select v-model="config.split"><option value="stratified_80_20">分层随机划分 · 80 / 20</option><option value="kfold_5">五折交叉验证</option></select></label>
-          <label><span>预处理</span><select v-model="config.preprocessing"><option value="standard_scaler">Standard Scaler</option><option value="minmax_scaler">Min-Max Scaler</option><option value="none">不处理</option></select></label>
+          <label><span>预处理</span><select v-model="config.preprocessing"><option value="standard_scaler">Standard Scaler</option><option value="minmax_scaler">Min-Max Scaler</option><option value="pca_0.95">PCA 降维 · 保留 95% 方差</option><option value="none">不处理</option></select></label>
         </div>
       </section>
 
       <section v-else-if="step === 2" class="builder-stage">
         <div class="stage-heading"><span>02</span><div><h2>选择算法</h2><p>同一接口下可以随时替换实现。</p></div></div>
         <div class="choice-grid model-choice-grid">
-          <button v-for="item in availableModels" :key="item.id" :class="{ selected: config.model === item.id }" @click="config.model = item.id">
+          <button
+            v-for="item in availableModels"
+            :key="item.id"
+            :class="{ selected: config.model === item.id, 'not-ready': !implementedModels.has(item.id) }"
+            :disabled="!implementedModels.has(item.id)"
+            :title="implementedModels.has(item.id) ? '' : '该算法尚未接入本地运行时'"
+            @click="config.model = item.id"
+          >
             <span class="model-monogram" :style="{ color: item.accent, borderColor: `${item.accent}55` }">{{ item.shortName }}</span>
-            <span><b>{{ item.name }}</b><small>{{ item.implementation }}</small></span>
+            <span><b>{{ item.name }}</b><small>{{ implementedModels.has(item.id) ? item.implementation : '待接入' }}</small></span>
             <em><AppIcon name="check" :size="13" /></em>
           </button>
         </div>
@@ -79,6 +93,10 @@ onMounted(() => {
           <div><span>模型参数</span><small>来自 SVM 参数 Schema</small></div>
           <label><span>Kernel</span><select v-model="config.kernel"><option value="rbf">RBF</option><option value="linear">Linear</option><option value="poly">Polynomial</option></select></label>
           <label class="range-control"><span>正则化系数 C <output>{{ config.c.toFixed(1) }}</output></span><input v-model.number="config.c" type="range" min="0.1" max="5" step="0.1" /></label>
+        </div>
+        <div v-else-if="config.model === 'kmeans'" class="parameter-panel">
+          <div><span>模型参数</span><small>来自 K-Means 参数 Schema</small></div>
+          <p class="parameter-note">k 自动等于类别数，采用 k-means++ 初始化并做 8 次重启取最小簇内平方误差。</p>
         </div>
       </section>
 
@@ -104,7 +122,7 @@ onMounted(() => {
       <h2>实验摘要</h2>
       <div class="summary-pipeline">
         <div><i>1</i><span><small>DATASET</small><b>{{ datasets.find((item) => item.id === config.dataset)?.name }}</b></span></div>
-        <div><i>2</i><span><small>PREPROCESS</small><b>{{ config.preprocessing }}</b></span></div>
+        <div><i>2</i><span><small>PREPROCESS</small><b>{{ preprocessingLabels[config.preprocessing] ?? config.preprocessing }}</b></span></div>
         <div><i>3</i><span><small>MODEL</small><b>{{ algorithms.find((item) => item.id === config.model)?.name }}</b></span></div>
         <div><i>4</i><span><small>EVALUATION</small><b>{{ config.metrics.join(' + ') }}</b></span></div>
       </div>

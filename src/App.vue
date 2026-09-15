@@ -12,6 +12,7 @@ const nav = [
   { label: '概览', to: '/', icon: 'overview' },
   { label: '创建实验', to: '/experiments/new', icon: 'flask' },
   { label: '运行记录', to: '/runs', icon: 'runs' },
+  { label: '统一对比', to: '/benchmark', icon: 'dataset' },
   { label: '算法库', to: '/algorithms', icon: 'algorithm' },
   { label: '数据集', to: '/datasets', icon: 'dataset' },
 ]
@@ -35,18 +36,18 @@ const pageTitle = computed(() => String(route.meta.title || 'MLBench'))
 
       <nav class="app-nav">
         <span class="nav-label">WORKSPACE</span>
-        <RouterLink v-for="item in nav.slice(0, 3)" :key="item.to" :to="item.to" :title="item.label">
+        <RouterLink v-for="item in nav.slice(0, 4)" :key="item.to" :to="item.to" :title="item.label">
           <AppIcon :name="item.icon" :size="17" /><span>{{ item.label }}</span>
         </RouterLink>
         <span class="nav-label registry-label">REGISTRY</span>
-        <RouterLink v-for="item in nav.slice(3)" :key="item.to" :to="item.to" :title="item.label">
+        <RouterLink v-for="item in nav.slice(4)" :key="item.to" :to="item.to" :title="item.label">
           <AppIcon :name="item.icon" :size="17" /><span>{{ item.label }}</span>
         </RouterLink>
       </nav>
 
       <div class="sidebar-status">
         <span class="backend-light"></span>
-        <span><b>Mock runtime</b><small>后端接口已预留</small></span>
+        <span><b>Local runtime</b><small>浏览器内真实训练</small></span>
       </div>
       <button class="collapse-button" @click="collapsed = !collapsed"><AppIcon :name="collapsed ? 'expand' : 'collapse'" :size="15" /></button>
     </aside>

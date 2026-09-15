@@ -29,16 +29,23 @@ const defaultConfig = reactive<ExperimentConfig>({
 async function runExperiment(config: ExperimentConfig) {
   if (isRunning.value) throw new Error('An experiment is already running')
   isRunning.value = true
-  progress.value = 8
+  progress.value = 5
   lastMessage.value = '正在加载数据集'
-  const timer = window.setInterval(() => {
-    progress.value = Math.min(progress.value + 11, 89)
-    if (progress.value > 60) lastMessage.value = '正在计算评价指标'
-    else if (progress.value > 30) lastMessage.value = '正在训练模型'
-  }, 150)
+
+  const stageProgress: Record<string, number> = {
+    split: 18,
+    preprocess: 32,
+    train: 58,
+    predict: 82,
+    metrics: 93,
+  }
+  const onStage = (stage: string, message: string) => {
+    lastMessage.value = message
+    if (stage in stageProgress) progress.value = Math.max(progress.value, stageProgress[stage])
+  }
 
   try {
-    const result = await benchmarkClient.runExperiment(config)
+    const result = await benchmarkClient.runExperiment(config, onStage)
     const serial = Math.max(...runs.value.map((run) => Number(run.id.replace('EXP-', '')))) + 1
     result.id = `EXP-${String(serial).padStart(3, '0')}`
     result.createdAt = '刚刚'
@@ -47,7 +54,6 @@ async function runExperiment(config: ExperimentConfig) {
     lastMessage.value = '实验已完成'
     return result
   } finally {
-    window.clearInterval(timer)
     window.setTimeout(() => {
       isRunning.value = false
       progress.value = 0
