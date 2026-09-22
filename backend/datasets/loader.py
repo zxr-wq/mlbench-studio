@@ -17,13 +17,14 @@ Dataset Loader 统一返回::
 from functools import lru_cache
 
 import numpy as np
-from sklearn.datasets import load_breast_cancer, load_digits, load_iris, load_wine
+from sklearn.datasets import load_breast_cancer, load_diabetes, load_digits, load_iris, load_wine
 
 LOADERS = {
     "iris": load_iris,
     "wine": load_wine,
     "breast_cancer": load_breast_cancer,
     "digits": load_digits,
+    "diabetes": load_diabetes,
 }
 
 
@@ -33,10 +34,12 @@ def load_dataset(name):
     if name not in LOADERS:
         raise KeyError(f"未知数据集 {name!r}，可选: {sorted(LOADERS)}")
     raw = LOADERS[name]()
+    task_type = "regression" if name == "diabetes" else "classification"
+    target_names = ["disease_progression"] if task_type == "regression" else [str(n) for n in raw.target_names]
     return {
         "X": np.asarray(raw.data, dtype=float),
         "y": np.asarray(raw.target, dtype=int),
         "feature_names": [str(n) for n in raw.feature_names],
-        "target_names": [str(n) for n in raw.target_names],
-        "task_type": "classification",
+        "target_names": target_names,
+        "task_type": task_type,
     }

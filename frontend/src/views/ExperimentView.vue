@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import { algorithms, datasets } from '../data/catalog'
@@ -12,7 +12,42 @@ const { defaultConfig, isRunning, progress, lastMessage, runExperiment } = useLa
 const step = ref(1)
 const config = reactive<ExperimentConfig>({ ...defaultConfig, metrics: [...defaultConfig.metrics] })
 
-const availableModels = algorithms.filter((item) => ['svm', 'decision_tree', 'knn', 'naive_bayes'].includes(item.id))
+const availableModels = computed(() => algorithms.filter((item) => config.dataset === 'diabetes'
+  ? item.id === 'linear_regression'
+  : item.id !== 'linear_regression'))
+const taskType = computed(() => config.model === 'linear_regression' ? 'regression' : config.model === 'kmeans' ? 'clustering' : config.model === 'pca' ? 'dimensionality_reduction' : 'classification')
+const metricOptions = computed(() => ({
+  classification: [
+    { id: 'accuracy', name: 'Accuracy', desc: '整体预测正确的样本比例' },
+    { id: 'macro_f1', name: 'Macro F1', desc: '平等看待每一个类别' },
+    { id: 'precision', name: 'Precision', desc: '关注阳性预测的可信程度' },
+  ],
+  regression: [
+    { id: 'mse', name: 'MSE', desc: '预测误差的平方平均值' },
+    { id: 'rmse', name: 'RMSE', desc: '与目标量纲一致的误差' },
+    { id: 'r2', name: 'R²', desc: '模型解释目标方差的比例' },
+  ],
+  clustering: [
+    { id: 'silhouette_score', name: 'Silhouette', desc: '簇内紧密、簇间分离程度' },
+    { id: 'inertia', name: 'Inertia', desc: '簇内平方误差' },
+  ],
+  dimensionality_reduction: [
+    { id: 'explained_variance_ratio', name: '解释方差', desc: '各主成分保留的信息比例' },
+    { id: 'cumulative_explained_variance', name: '累计方差', desc: '前 K 个主成分的总解释率' },
+  ],
+}[taskType.value]))
+
+watch(taskType, (task) => {
+  config.metrics = task === 'regression' ? ['mse', 'rmse', 'r2']
+    : task === 'clustering' ? ['silhouette_score', 'inertia']
+      : task === 'dimensionality_reduction' ? ['explained_variance_ratio', 'cumulative_explained_variance']
+        : ['accuracy', 'macro_f1', 'precision']
+})
+
+watch(() => config.dataset, (dataset) => {
+  if (dataset === 'diabetes' && config.model !== 'linear_regression') config.model = 'linear_regression'
+  if (dataset !== 'diabetes' && config.model === 'linear_regression') config.model = 'svm'
+})
 
 function toggleMetric(metric: string) {
   if (config.metrics.includes(metric)) {
@@ -29,7 +64,7 @@ onMounted(() => {
   if (typeof route.query.dataset === 'string' && datasets.some((item) => item.id === route.query.dataset)) {
     config.dataset = route.query.dataset
   }
-  if (typeof route.query.model === 'string' && availableModels.some((item) => item.id === route.query.model)) {
+  if (typeof route.query.model === 'string' && availableModels.value.some((item) => item.id === route.query.model)) {
     config.model = route.query.model
     step.value = 2
   }
@@ -99,7 +134,7 @@ onMounted(() => {
       <section v-else class="builder-stage">
         <div class="stage-heading"><span>03</span><div><h2>设置评价方式</h2><p>选择能够回答实验问题的指标。</p></div></div>
         <div class="metric-choice-list">
-          <button v-for="item in [{ id: 'accuracy', name: 'Accuracy', desc: '整体预测正确的样本比例' }, { id: 'macro_f1', name: 'Macro F1', desc: '平等看待每一个类别' }, { id: 'precision', name: 'Precision', desc: '关注阳性预测的可信程度' }]" :key="item.id" :class="{ selected: config.metrics.includes(item.id) }" @click="toggleMetric(item.id)">
+          <button v-for="item in metricOptions" :key="item.id" :class="{ selected: config.metrics.includes(item.id) }" @click="toggleMetric(item.id)">
             <em><AppIcon name="check" :size="14" /></em><span><b>{{ item.name }}</b><small>{{ item.desc }}</small></span>
           </button>
         </div>

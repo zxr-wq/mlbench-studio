@@ -6,10 +6,10 @@ from backend.core.factory import ModelFactory
 from backend.core.registry import registered_names
 
 
-def test_eight_scratch_models_are_registered():
+def test_ten_scratch_models_are_registered():
     assert set(registered_names()) == {
-        "decision_tree", "gradient_boosting", "kmeans", "knn",
-        "naive_bayes", "pca", "random_forest", "svm",
+        "decision_tree", "gradient_boosting", "kmeans", "knn", "linear_regression",
+        "logistic_regression", "naive_bayes", "pca", "random_forest", "svm",
     }
 
 

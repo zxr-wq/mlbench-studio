@@ -158,6 +158,10 @@ def run_experiment(config):
     model = ModelFactory.create(name, params, implementation)
     task_type = model.task_type
     bundle, X_train, X_test, y_train, y_test = prepare_data(config, model_task_type=task_type)
+    if task_type in ("classification", "regression") and bundle["task_type"] != task_type:
+        raise ValueError(
+            f"模型 {name!r} 是 {task_type} 任务，不能在 {bundle['task_type']} 数据集 {config['dataset']!r} 上评价"
+        )
 
     started = time.perf_counter()
     if task_type in ("classification", "regression"):

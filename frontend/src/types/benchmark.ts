@@ -31,6 +31,10 @@ export interface ExperimentResult {
   metrics?: Record<string, number | number[]>
   params?: Record<string, unknown>
   visualization?: Record<string, unknown>
+  primaryMetric?: string
+  primaryValue?: number
+  secondaryMetric?: string
+  secondaryValue?: number
 }
 
 export interface OverviewStats {

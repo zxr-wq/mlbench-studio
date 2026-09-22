@@ -11,7 +11,10 @@ from backend.models.scratch import naive_bayes as scratch_naive_bayes  # noqa: F
 from backend.models.scratch import decision_tree as scratch_decision_tree  # noqa: F401
 from backend.models.scratch import random_forest as scratch_random_forest  # noqa: F401
 from backend.models.scratch import gradient_boosting as scratch_gradient_boosting  # noqa: F401
+from backend.models.scratch import linear_regression as scratch_linear_regression  # noqa: F401
+from backend.models.scratch import logistic_regression as scratch_logistic_regression  # noqa: F401
 from backend.models.sklearn import kmeans as sklearn_kmeans  # noqa: F401
 from backend.models.sklearn import pca as sklearn_pca  # noqa: F401
 from backend.models.sklearn import svm as sklearn_svm  # noqa: F401
 from backend.models.sklearn import classifiers as sklearn_classifiers  # noqa: F401
+from backend.models.sklearn import linear_models as sklearn_linear_models  # noqa: F401

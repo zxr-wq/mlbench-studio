@@ -14,7 +14,7 @@
 - `/datasets`：数据集目录及实验入口
 - 网页通过 FastAPI + WebSocket 发起并展示真实实验
 - 统一 Config / Result 协议、Registry / Factory / Runner
-- 已接入 8 个 Scratch 算法：KNN、Gaussian NB、SVM、K-Means、PCA、Decision Tree、Random Forest、Gradient Boosting
+- 已接入 10 个 Scratch 算法：Linear Regression、Logistic Regression、KNN、Gaussian NB、SVM、K-Means、PCA、Decision Tree、Random Forest、Gradient Boosting
 
 ## 本地运行
 
@@ -36,6 +36,17 @@ pnpm dev
 
 浏览器访问 `http://127.0.0.1:5173`。
 
+## 验证与 Benchmark
+
+```bash
+.venv/Scripts/python -m pytest backend/tests -q
+.venv/Scripts/python -m backend.benchmark.run_benchmark
+```
+
+Benchmark 以任务类型分组：七个分类模型在 Iris、Wine、Breast Cancer、Digits 上对比；Linear Regression 在 Diabetes 上单独以 MSE/RMSE/MAE/R2 对比；K-Means 与 PCA 使用各自的聚类/降维指标。Scratch 与 sklearn 使用相同划分、随机种子和模型参数。
+
+实现与接口说明见 [B 算法与集成说明](docs/B_ALGORITHMS_AND_INTEGRATION.md)。
+
 推送到 `main` 分支后，GitHub Actions 会自动构建并发布 GitHub Pages。
 
 ## 当前边界
@@ -44,8 +55,6 @@ GitHub Pages 只能托管静态前端；要让公开网页运行真实训练，�
 
 ## 后续建议
 
-1. 根据反馈调整工作台布局、色彩和信息优先级。
-2. 确定十大算法和数据集名单。
-3. 固化配置 Schema 与前后端消息协议。
-4. 建立 Python Pipeline、注册表及首个算法闭环。
-5. 加入实验历史、可视化和报告导出。
+1. 用 42、52、62 等多个随机种子运行正式 Benchmark，并报告均值与标准差。
+2. 将 Python 后端部署到公开服务，再为 GitHub Pages 设置 `VITE_API_BASE`。
+3. 导出正式结果表、可视化截图与课程报告。
