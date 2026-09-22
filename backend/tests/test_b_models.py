@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 import backend.models  # noqa: F401
 from backend.core.factory import ModelFactory
 from backend.core.runner import run_experiment
+from backend.benchmark.run_benchmark import benchmark_task
 
 
 def test_linear_regression_matches_least_squares_reference():
@@ -37,3 +38,10 @@ def test_diabetes_runner_returns_regression_metrics_only():
     assert result["task_type"] == "regression"
     assert set(result["metrics"]) == {"mse", "rmse", "mae", "r2"}
     assert result["metrics"]["r2"] > .3
+
+
+def test_regression_benchmark_uses_regression_metrics():
+    results = benchmark_task("regression", "diabetes")
+    assert len(results) == 1
+    assert results[0]["model"] == "linear_regression"
+    assert set(results[0]["metrics"]) == {"mse", "rmse", "mae", "r2"}

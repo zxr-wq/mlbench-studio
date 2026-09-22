@@ -42,6 +42,7 @@ DEFAULT_PARAMS = {
 
 DEFAULT_METRICS = {
     "classification": ["accuracy", "precision", "recall", "f1"],
+    "regression": ["mse", "rmse", "mae", "r2"],
     "clustering": ["silhouette_score", "inertia"],
     "dimensionality_reduction": ["explained_variance_ratio", "cumulative_explained_variance"],
 }
