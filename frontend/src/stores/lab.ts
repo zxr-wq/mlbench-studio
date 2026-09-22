@@ -22,6 +22,12 @@ const defaultConfig = reactive<ExperimentConfig>({
   model: 'svm',
   kernel: 'rbf',
   c: 1,
+  k: 5,
+  distance: 'euclidean',
+  maxDepth: 4,
+  nEstimators: 50,
+  learningRate: 0.1,
+  implementation: 'scratch',
   metrics: ['accuracy', 'macro_f1'],
   seed: 42,
 })

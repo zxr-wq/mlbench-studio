@@ -28,12 +28,10 @@ export const algorithms: AlgorithmItem[] = [
   { id: 'decision_tree', name: '决策树', shortName: 'CART', family: '分类', implementation: '自主实现', status: 'ready', description: '通过递归划分特征空间构造可解释的树结构。', accent: '#34715a', tags: ['Gini', 'Tree'] },
   { id: 'knn', name: 'K 近邻', shortName: 'KNN', family: '分类', implementation: '自主实现', status: 'ready', description: '根据特征空间中最近的训练样本完成预测。', accent: '#4f73b5', tags: ['Distance', 'Voting'] },
   { id: 'naive_bayes', name: '朴素贝叶斯', shortName: 'NB', family: '分类', implementation: '自主实现', status: 'ready', description: '利用条件独立假设得到高效概率分类器。', accent: '#885e9f', tags: ['Bayes', 'Probability'] },
-  { id: 'logistic', name: '逻辑回归', shortName: 'LR', family: '分类', implementation: '自主实现', status: 'ready', description: '以对数几率连接线性输出与类别概率。', accent: '#bd7c2f', tags: ['Linear', 'Gradient'] },
   { id: 'kmeans', name: 'K-Means', shortName: 'KM', family: '聚类', implementation: '自主实现', status: 'ready', description: '迭代优化簇内平方误差的经典聚类算法。', accent: '#357b8a', tags: ['Cluster', 'Centroid'] },
   { id: 'pca', name: '主成分分析', shortName: 'PCA', family: '降维', implementation: '自主实现', status: 'ready', description: '用最大方差方向构造低维正交表示。', accent: '#656e70', tags: ['SVD', 'Projection'] },
-  { id: 'adaboost', name: 'AdaBoost', shortName: 'ADA', family: '集成', implementation: '自主实现', status: 'draft', description: '通过重新加权样本串联多个弱分类器。', accent: '#a15454', tags: ['Ensemble', 'Weight'] },
-  { id: 'random_forest', name: '随机森林', shortName: 'RF', family: '集成', implementation: 'Sklearn 对照', status: 'ready', description: '结合 Bagging 与随机特征子集的树模型集成。', accent: '#58723d', tags: ['Bagging', 'Forest'] },
-  { id: 'mlp', name: '多层感知机', shortName: 'MLP', family: '神经网络', implementation: '自主实现', status: 'draft', description: '使用反向传播训练多层全连接神经网络。', accent: '#6457ae', tags: ['Backprop', 'Neural'] },
+  { id: 'random_forest', name: '随机森林', shortName: 'RF', family: '集成', implementation: '自主实现', status: 'ready', description: '结合 Bagging 与随机特征子集的树模型集成。', accent: '#58723d', tags: ['Bagging', 'Forest'] },
+  { id: 'gradient_boosting', name: '梯度提升', shortName: 'GB', family: '集成', implementation: '自主实现', status: 'ready', description: '逐轮拟合残差并累加弱学习器。', accent: '#a15454', tags: ['Ensemble', 'Loss'] },
 ]
 
 export const datasets: DatasetItem[] = [

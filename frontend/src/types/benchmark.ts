@@ -7,6 +7,12 @@ export interface ExperimentConfig {
   model: string
   kernel: string
   c: number
+  k: number
+  distance: 'euclidean' | 'manhattan'
+  maxDepth: number
+  nEstimators: number
+  learningRate: number
+  implementation: 'scratch' | 'sklearn'
   metrics: string[]
   seed: number
 }
@@ -20,6 +26,11 @@ export interface ExperimentResult {
   duration: number
   status: RunStatus
   createdAt: string
+  taskType?: string
+  implementation?: string
+  metrics?: Record<string, number | number[]>
+  params?: Record<string, unknown>
+  visualization?: Record<string, unknown>
 }
 
 export interface OverviewStats {
@@ -34,4 +45,3 @@ export interface BenchmarkClient {
   getRecentRuns(): Promise<ExperimentResult[]>
   runExperiment(config: ExperimentConfig): Promise<ExperimentResult>
 }
-
