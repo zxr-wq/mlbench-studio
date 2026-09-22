@@ -56,9 +56,12 @@ def normalize_config(payload: dict) -> dict:
     get_model_class(name, implementation)
     load_dataset(dataset)
     split = payload.get("split") or {}
+    test_size = float(split.get("test_size", 0.2))
+    if not 0 < test_size < 1:
+        raise ValueError("split.test_size must be between 0 and 1")
     return {
         "dataset": dataset,
-        "split": {"test_size": float(split.get("test_size", 0.2)), "random_state": int(split.get("random_state", 42))},
+        "split": {"test_size": test_size, "random_state": int(split.get("random_state", 42))},
         "preprocessing": list(payload.get("preprocessing") or []),
         "model": {"name": name, "implementation": implementation, "params": dict(model.get("params") or {})},
         "metrics": list(payload.get("metrics") or []),
@@ -86,7 +89,7 @@ async def health():
 @app.get("/api/datasets")
 async def datasets():
     entries = []
-    for dataset in ("iris", "wine", "breast_cancer", "digits"):
+    for dataset in ("iris", "wine", "breast_cancer", "digits", "diabetes"):
         bundle = load_dataset(dataset)
         entries.append({"id": dataset, "task_type": bundle["task_type"], "samples": len(bundle["X"]), "features": len(bundle["feature_names"]), "target_names": bundle["target_names"]})
     return entries

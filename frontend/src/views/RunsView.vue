@@ -15,6 +15,8 @@ const filteredRuns = computed(() => runs.value.filter((run) => {
   const matchModel = modelFilter.value === '全部模型' || run.model === modelFilter.value
   return matchQuery && matchModel
 }))
+const label = (run: { primaryMetric?: string }, fallback: string) => run.primaryMetric ?? fallback
+const value = (run: { primaryValue?: number, accuracy: number }, fallback: number) => Number(run.primaryValue ?? fallback).toFixed(3)
 </script>
 
 <template>
@@ -33,14 +35,14 @@ const filteredRuns = computed(() => runs.value.filter((run) => {
 
     <section class="data-sheet">
       <div class="sheet-row sheet-head">
-        <span>运行</span><span>模型</span><span>数据集</span><span>Accuracy</span><span>Macro F1</span><span>耗时</span><span>状态</span>
+        <span>运行</span><span>模型</span><span>数据集</span><span>主要指标</span><span>辅助指标</span><span>耗时</span><span>状态</span>
       </div>
       <button v-for="run in filteredRuns" :key="run.id" class="sheet-row" @click="router.push(`/runs/${run.id}`)">
         <span class="run-cell"><i></i><b>{{ run.id }}</b><small>{{ run.createdAt }}</small></span>
         <span><b>{{ run.model }}</b></span>
         <span>{{ run.dataset }}</span>
-        <span class="metric-cell">{{ run.accuracy.toFixed(3) }}</span>
-        <span class="metric-cell secondary">{{ run.f1.toFixed(3) }}</span>
+        <span class="metric-cell"><small>{{ label(run, 'accuracy') }}</small>{{ value(run, run.accuracy) }}</span>
+        <span class="metric-cell secondary"><small>{{ run.secondaryMetric ?? 'f1' }}</small>{{ run.secondaryValue?.toFixed(3) ?? run.f1.toFixed(3) }}</span>
         <span>{{ run.duration.toFixed(2) }}s</span>
         <span class="status-label"><i></i>完成</span>
       </button>

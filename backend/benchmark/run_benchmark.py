@@ -24,11 +24,18 @@ from backend.metrics import classification as clf_metrics
 
 import backend.models  # noqa: F401  触发 @register_model 注册
 
-DATASETS = ("iris", "wine", "breast_cancer", "digits")
+CLASSIFICATION_DATASETS = ("iris", "wine", "breast_cancer", "digits")
+REGRESSION_DATASETS = ("diabetes",)
 
 # 各任务模型默认参数（统一算法名，model.params 全部收拢在这里）
 DEFAULT_PARAMS = {
+    "linear_regression": {"fit_intercept": True},
+    "logistic_regression": {"learning_rate": 0.1, "max_iter": 800, "l2": 0.01},
+    "knn": {"k": 5, "distance": "euclidean", "weights": "uniform"},
     "svm": {"C": 1.0, "kernel": "rbf"},
+    "decision_tree": {"max_depth": 5, "min_samples_split": 2, "min_samples_leaf": 1},
+    "random_forest": {"n_estimators": 30, "max_depth": 6, "random_state": 42},
+    "gradient_boosting": {"n_estimators": 40, "learning_rate": 0.1, "max_depth": 2},
     "kmeans": None,  # k 依赖数据集类别数，运行时填
     "pca": {"n_components": 0.95},
 }
@@ -161,16 +168,24 @@ def compare_scratch_sklearn(name, dataset):
     return row
 
 
-def run_full_benchmark(datasets=DATASETS):
-    """全部任务 × 全部数据集：统一结果 + scratch/sklearn 对照。"""
+def run_full_benchmark(classification_datasets=CLASSIFICATION_DATASETS, regression_datasets=REGRESSION_DATASETS):
+    """按任务分开的完整 Benchmark，不产生跨任务的虚假 Accuracy 排名。"""
     payload = {"results": [], "comparisons": []}
-    for dataset in datasets:
+    for dataset in classification_datasets:
         for task_type in ("classification", "clustering", "dimensionality_reduction"):
             payload["results"].extend(benchmark_task(task_type, dataset))
         for name in registered_names("scratch"):
-            comparison = compare_scratch_sklearn(name, dataset)
-            if comparison:
-                payload["comparisons"].append(comparison)
+            if ModelFactory.create(name).task_type != "regression":
+                comparison = compare_scratch_sklearn(name, dataset)
+                if comparison:
+                    payload["comparisons"].append(comparison)
+    for dataset in regression_datasets:
+        payload["results"].extend(benchmark_task("regression", dataset))
+        for name in registered_names("scratch"):
+            if ModelFactory.create(name).task_type == "regression":
+                comparison = compare_scratch_sklearn(name, dataset)
+                if comparison:
+                    payload["comparisons"].append(comparison)
     return payload
 
 
@@ -203,6 +218,12 @@ def _print_report(payload):
                 f"sklearn={row['sklearn_silhouette']:.4f} "
                 f"Δinertia={row['inertia_difference']:+.4f}"
             )
+        elif row["task_type"] == "regression":
+            print(
+                f"{row['model']:<18} × {row['dataset']:<14} "
+                f"scratch R²={row['scratch_r2']:.4f} sklearn R²={row['sklearn_r2']:.4f} "
+                f"ΔMSE={row['mse_difference']:+.4f}"
+            )
         else:
             print(
                 f"{row['model']:<8} × {row['dataset']:<14} "
@@ -213,8 +234,13 @@ def _print_report(payload):
 if __name__ == "__main__":
     import sys
 
-    selected = sys.argv[1:] or list(DATASETS)
-    payload = run_full_benchmark(selected)
+    selected = sys.argv[1:]
+    if selected:
+        classification = tuple(name for name in selected if name in CLASSIFICATION_DATASETS)
+        regression = tuple(name for name in selected if name in REGRESSION_DATASETS)
+        payload = run_full_benchmark(classification, regression)
+    else:
+        payload = run_full_benchmark()
     _print_report(payload)
 
     out_dir = Path(__file__).resolve().parent / "results"

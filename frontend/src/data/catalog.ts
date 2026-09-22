@@ -4,7 +4,7 @@ export interface AlgorithmItem {
   id: string
   name: string
   shortName: string
-  family: '分类' | '聚类' | '降维' | '集成' | '神经网络'
+  family: '分类' | '回归' | '聚类' | '降维' | '集成' | '神经网络'
   implementation: '自主实现' | 'Sklearn 对照'
   status: 'ready' | 'draft'
   description: string
@@ -24,6 +24,8 @@ export interface DatasetItem {
 }
 
 export const algorithms: AlgorithmItem[] = [
+  { id: 'linear_regression', name: '线性回归', shortName: 'OLS', family: '回归', implementation: '自主实现', status: 'ready', description: '通过最小二乘法拟合连续目标，使用 MSE、MAE 与 R² 评价。', accent: '#bd7c2f', tags: ['OLS', 'Regression'] },
+  { id: 'logistic_regression', name: '逻辑回归', shortName: 'LOG', family: '分类', implementation: '自主实现', status: 'ready', description: '以 Softmax 与梯度下降完成多分类概率建模。', accent: '#d06a91', tags: ['Softmax', 'Gradient'] },
   { id: 'svm', name: '支持向量机', shortName: 'SVM', family: '分类', implementation: '自主实现', status: 'ready', description: '寻找最大间隔分类超平面，支持线性与核方法。', accent: '#e46647', tags: ['Margin', 'Kernel'] },
   { id: 'decision_tree', name: '决策树', shortName: 'CART', family: '分类', implementation: '自主实现', status: 'ready', description: '通过递归划分特征空间构造可解释的树结构。', accent: '#34715a', tags: ['Gini', 'Tree'] },
   { id: 'knn', name: 'K 近邻', shortName: 'KNN', family: '分类', implementation: '自主实现', status: 'ready', description: '根据特征空间中最近的训练样本完成预测。', accent: '#4f73b5', tags: ['Distance', 'Voting'] },
@@ -39,6 +41,7 @@ export const datasets: DatasetItem[] = [
   { id: 'iris', name: 'Iris', task: '多分类', samples: 150, features: 4, classes: 3, description: '经典鸢尾花数据集，适合展示决策边界和基础分类流程。', accent: '#c8dbcd' },
   { id: 'wine', name: 'Wine', task: '多分类', samples: 178, features: 13, classes: 3, description: '葡萄酒化学分析数据，用于比较尺度敏感模型和树模型。', accent: '#e3d2b5' },
   { id: 'digits', name: 'Optical Digits', task: '多分类', samples: 1797, features: 64, classes: 10, description: '8×8 手写数字灰度特征，适合高维分类与降维实验。', accent: '#cbd2e3' },
+  { id: 'diabetes', name: 'Diabetes', task: '回归', samples: 442, features: 10, classes: 1, description: '糖尿病疾病进展预测数据集，用于线性回归与 R² 评价。', accent: '#d9c6e6' },
 ]
 
 export const initialRuns: ExperimentResult[] = [
