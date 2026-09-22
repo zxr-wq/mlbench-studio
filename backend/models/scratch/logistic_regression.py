@@ -14,6 +14,9 @@ class LogisticRegression(BaseModel):
         self.learning_rate = float(learning_rate)
         self.max_iter = int(max_iter)
         self.l2 = float(l2)
+        # The shared interface is also consumed before a model is fitted.
+        # Keep the visualization payload stable in that state.
+        self.loss_history_ = []
 
     @staticmethod
     def _softmax(scores):
