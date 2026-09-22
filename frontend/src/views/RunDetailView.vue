@@ -7,6 +7,10 @@ import { useLabStore } from '../stores/lab'
 const route = useRoute()
 const { runs } = useLabStore()
 const run = computed(() => runs.value.find((item) => item.id === route.params.id) ?? runs.value[0])
+const metricEntries = computed(() => Object.entries(run.value.metrics ?? { accuracy: run.value.accuracy, f1: run.value.f1 })
+  .filter(([, value]) => typeof value === 'number')
+  .slice(0, 3))
+const metricLabel = (metric: string) => ({ accuracy: 'Accuracy', f1: 'Macro F1', precision: 'Precision', recall: 'Recall', silhouette_score: 'Silhouette', inertia: 'Inertia', cumulative_explained_variance: '累计解释方差' }[metric] ?? metric)
 </script>
 
 <template>
@@ -18,14 +22,13 @@ const run = computed(() => runs.value.find((item) => item.id === route.params.id
     </header>
 
     <section class="detail-metrics">
-      <div><span>Accuracy</span><strong>{{ run.accuracy.toFixed(3) }}</strong><small>测试集</small></div>
-      <div><span>Macro F1</span><strong>{{ run.f1.toFixed(3) }}</strong><small>测试集</small></div>
+      <div v-for="[metric, value] in metricEntries" :key="metric"><span>{{ metricLabel(metric) }}</span><strong>{{ Number(value).toFixed(3) }}</strong><small>{{ run.taskType ?? '测试集' }}</small></div>
       <div><span>训练耗时</span><strong>{{ run.duration.toFixed(2) }}s</strong><small>本地 CPU</small></div>
       <div><span>可复现</span><strong class="yes-value"><AppIcon name="check" :size="24" /> Yes</strong><small>配置与随机种子已保存</small></div>
     </section>
 
     <div class="detail-grid">
-      <section class="content-section">
+      <section v-if="run.taskType === 'classification' || !run.taskType" class="content-section">
         <div class="section-title-row"><div><span class="overline">EVALUATION</span><h2>类别表现</h2></div></div>
         <div class="confusion-wrap">
           <div class="confusion-grid">

@@ -80,6 +80,20 @@ onMounted(() => {
           <label><span>Kernel</span><select v-model="config.kernel"><option value="rbf">RBF</option><option value="linear">Linear</option><option value="poly">Polynomial</option></select></label>
           <label class="range-control"><span>正则化系数 C <output>{{ config.c.toFixed(1) }}</output></span><input v-model.number="config.c" type="range" min="0.1" max="5" step="0.1" /></label>
         </div>
+        <div v-else-if="['knn', 'kmeans'].includes(config.model)" class="parameter-panel">
+          <div><span>模型参数</span><small>{{ config.model === 'knn' ? '近邻数量与距离度量' : '聚类数量与随机种子' }}</small></div>
+          <label class="range-control"><span>{{ config.model === 'knn' ? 'K 个最近邻' : '簇数量 K' }} <output>{{ config.k }}</output></span><input v-model.number="config.k" type="range" min="2" max="15" step="1" /></label>
+          <label v-if="config.model === 'knn'"><span>Distance</span><select v-model="config.distance"><option value="euclidean">Euclidean</option><option value="manhattan">Manhattan</option></select></label>
+        </div>
+        <div v-else-if="['decision_tree', 'random_forest', 'gradient_boosting'].includes(config.model)" class="parameter-panel">
+          <div><span>模型参数</span><small>树深度与集成轮数</small></div>
+          <label class="range-control"><span>最大深度 <output>{{ config.maxDepth }}</output></span><input v-model.number="config.maxDepth" type="range" min="1" max="10" step="1" /></label>
+          <label v-if="config.model !== 'decision_tree'" class="range-control"><span>估计器数量 <output>{{ config.nEstimators }}</output></span><input v-model.number="config.nEstimators" type="range" min="10" max="120" step="10" /></label>
+        </div>
+        <div class="parameter-panel implementation-panel">
+          <div><span>实现版本</span><small>Scratch 与 sklearn 使用相同实验配置</small></div>
+          <label><span>Implementation</span><select v-model="config.implementation"><option value="scratch">Scratch 自实现</option><option value="sklearn">sklearn 对照</option></select></label>
+        </div>
       </section>
 
       <section v-else class="builder-stage">
