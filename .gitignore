@@ -7,4 +7,6 @@ dist/
 __pycache__/
 .pytest_cache/
 .venv/
+backend/benchmark/results/
 tmp/
+.codex_branch_audit/
