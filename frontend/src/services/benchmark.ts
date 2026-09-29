@@ -12,15 +12,16 @@ const request = async (path: string, options?: RequestInit) => {
 
 function makeConfig(config: ExperimentConfig) {
   const params: Record<string, unknown> = {
-    linear_regression: { fit_intercept: true },
-    logistic_regression: { learning_rate: config.learningRate, max_iter: config.nEstimators * 10, l2: 0.01 },
+    linear_regression: { fit_intercept: config.fitIntercept },
+    logistic_regression: { learning_rate: config.learningRate, max_iter: config.maxIterations, l2: 0.01 },
+    naive_bayes: { var_smoothing: config.varSmoothing },
     svm: { C: config.c, kernel: config.kernel },
     knn: { k: config.k, distance: config.distance },
     decision_tree: { max_depth: config.maxDepth },
     random_forest: { n_estimators: config.nEstimators, max_depth: config.maxDepth, random_state: config.seed },
     gradient_boosting: { n_estimators: config.nEstimators, learning_rate: config.learningRate, max_depth: config.maxDepth },
     kmeans: { k: config.k, random_state: config.seed },
-    pca: { n_components: 2 },
+    pca: { n_components: config.pcaComponents },
   }
   const metrics = config.model === 'kmeans'
     ? ['silhouette_score', 'inertia']

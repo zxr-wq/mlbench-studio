@@ -12,15 +12,21 @@ const { defaultConfig, isRunning, progress, lastMessage, runExperiment } = useLa
 const step = ref(1)
 const config = reactive<ExperimentConfig>({ ...defaultConfig, metrics: [...defaultConfig.metrics] })
 
-const availableModels = computed(() => algorithms.filter((item) => config.dataset === 'diabetes'
-  ? item.id === 'linear_regression'
-  : item.id !== 'linear_regression'))
+const isRegressionDataset = () => ['diabetes', 'friedman1'].includes(config.dataset)
+const isCompatible = (modelId: string) => isRegressionDataset()
+  ? modelId === 'linear_regression'
+  : modelId !== 'linear_regression'
+const compatibleCount = computed(() => algorithms.filter((item) => isCompatible(item.id)).length)
+const canUseRocAuc = computed(() => ['breast_cancer', 'moons', 'circles'].includes(config.dataset)
+  && ['knn', 'naive_bayes', 'logistic_regression'].includes(config.model))
 const taskType = computed(() => config.model === 'linear_regression' ? 'regression' : config.model === 'kmeans' ? 'clustering' : config.model === 'pca' ? 'dimensionality_reduction' : 'classification')
 const metricOptions = computed(() => ({
   classification: [
     { id: 'accuracy', name: 'Accuracy', desc: '整体预测正确的样本比例' },
     { id: 'macro_f1', name: 'Macro F1', desc: '平等看待每一个类别' },
-    { id: 'precision', name: 'Precision', desc: '关注阳性预测的可信程度' },
+    { id: 'precision', name: 'Precision', desc: '预测为某类的样本中，真正正确的比例；越高越好' },
+    { id: 'recall', name: 'Recall', desc: '真实属于某类的样本中，被找回的比例；越高越好' },
+    ...(canUseRocAuc.value ? [{ id: 'roc_auc', name: 'ROC-AUC', desc: '二分类概率排序能力；0.5 接近随机，越接近 1 越好' }] : []),
   ],
   regression: [
     { id: 'mse', name: 'MSE', desc: '预测误差的平方平均值' },
@@ -44,9 +50,9 @@ watch(taskType, (task) => {
         : ['accuracy', 'macro_f1', 'precision']
 })
 
-watch(() => config.dataset, (dataset) => {
-  if (dataset === 'diabetes' && config.model !== 'linear_regression') config.model = 'linear_regression'
-  if (dataset !== 'diabetes' && config.model === 'linear_regression') config.model = 'svm'
+watch(() => config.dataset, () => {
+  if (isRegressionDataset() && config.model !== 'linear_regression') config.model = 'linear_regression'
+  if (!isRegressionDataset() && config.model === 'linear_regression') config.model = 'svm'
 })
 
 function toggleMetric(metric: string) {
@@ -64,7 +70,7 @@ onMounted(() => {
   if (typeof route.query.dataset === 'string' && datasets.some((item) => item.id === route.query.dataset)) {
     config.dataset = route.query.dataset
   }
-  if (typeof route.query.model === 'string' && availableModels.value.some((item) => item.id === route.query.model)) {
+  if (typeof route.query.model === 'string' && isCompatible(route.query.model)) {
     config.model = route.query.model
     step.value = 2
   }
@@ -96,17 +102,17 @@ onMounted(() => {
           </button>
         </div>
         <div class="inline-fields">
-          <label><span>划分策略</span><select v-model="config.split"><option value="stratified_80_20">分层随机划分 · 80 / 20</option><option value="kfold_5">五折交叉验证</option></select></label>
-          <label><span>预处理</span><select v-model="config.preprocessing"><option value="standard_scaler">Standard Scaler</option><option value="minmax_scaler">Min-Max Scaler</option><option value="none">不处理</option></select></label>
+          <label><span>划分策略</span><select v-model="config.split"><option value="stratified_80_20">固定训练 / 测试划分 · 80 / 20</option><option value="kfold_5" disabled>五折交叉验证 · 后续扩展</option></select><small class="field-help">用 80% 数据训练、20% 留作从未见过的测试集；分类任务会保持各类别比例。</small></label>
+          <label><span>预处理</span><select v-model="config.preprocessing"><option value="standard_scaler">Standard Scaler</option><option value="minmax_scaler">Min-Max Scaler</option><option value="none">不处理</option></select><small class="field-help">统一特征量纲。距离、SVM、逻辑回归通常建议使用 Standard Scaler；树模型影响较小。</small></label>
         </div>
       </section>
 
       <section v-else-if="step === 2" class="builder-stage">
-        <div class="stage-heading"><span>02</span><div><h2>选择算法</h2><p>同一接口下可以随时替换实现。</p></div></div>
+        <div class="stage-heading"><span>02</span><div><h2>选择算法</h2><p>已注册 10 种算法；当前数据集兼容 {{ compatibleCount }} 种。灰色卡片会说明不兼容原因。</p></div></div>
         <div class="choice-grid model-choice-grid">
-          <button v-for="item in availableModels" :key="item.id" :class="{ selected: config.model === item.id }" @click="config.model = item.id">
+          <button v-for="item in algorithms" :key="item.id" :disabled="!isCompatible(item.id)" :class="{ selected: config.model === item.id, incompatible: !isCompatible(item.id) }" @click="config.model = item.id">
             <span class="model-monogram" :style="{ color: item.accent, borderColor: `${item.accent}55` }">{{ item.shortName }}</span>
-            <span><b>{{ item.name }}</b><small>{{ item.implementation }}</small></span>
+            <span><b>{{ item.name }}</b><small>{{ isCompatible(item.id) ? item.implementation : (item.id === 'linear_regression' ? '仅适用于 Diabetes / Friedman 回归数据' : '当前为回归数据集，仅支持线性回归') }}</small></span>
             <em><AppIcon name="check" :size="13" /></em>
           </button>
         </div>
@@ -125,9 +131,26 @@ onMounted(() => {
           <label class="range-control"><span>最大深度 <output>{{ config.maxDepth }}</output></span><input v-model.number="config.maxDepth" type="range" min="1" max="10" step="1" /></label>
           <label v-if="config.model !== 'decision_tree'" class="range-control"><span>估计器数量 <output>{{ config.nEstimators }}</output></span><input v-model.number="config.nEstimators" type="range" min="10" max="120" step="10" /></label>
         </div>
+        <div v-else-if="config.model === 'logistic_regression'" class="parameter-panel">
+          <div><span>逻辑回归参数</span><small>学习率决定每一步更新幅度；迭代次数越高，收敛机会越大但越慢。</small></div>
+          <label class="range-control"><span>学习率 <output>{{ config.learningRate.toFixed(2) }}</output></span><input v-model.number="config.learningRate" type="range" min="0.01" max="0.3" step="0.01" /></label>
+          <label class="range-control"><span>最大迭代次数 <output>{{ config.maxIterations }}</output></span><input v-model.number="config.maxIterations" type="range" min="100" max="2000" step="100" /></label>
+        </div>
+        <div v-else-if="config.model === 'naive_bayes'" class="parameter-panel">
+          <div><span>朴素贝叶斯参数</span><small>平滑项避免某个特征方差过小导致数值不稳定。</small></div>
+          <label><span>方差平滑</span><select v-model.number="config.varSmoothing"><option :value="1e-12">极低 · 1e-12</option><option :value="1e-9">标准 · 1e-9</option><option :value="1e-6">较强 · 1e-6</option></select></label>
+        </div>
+        <div v-else-if="config.model === 'pca'" class="parameter-panel">
+          <div><span>PCA 参数</span><small>主成分数越少，压缩越强；二维最适合观察散点分布。</small></div>
+          <label class="range-control"><span>保留主成分数 <output>{{ config.pcaComponents }}</output></span><input v-model.number="config.pcaComponents" type="range" min="2" max="10" step="1" /></label>
+        </div>
+        <div v-else-if="config.model === 'linear_regression'" class="parameter-panel">
+          <div><span>线性回归参数</span><small>截距允许拟合线不必经过坐标原点，通常建议保留。</small></div>
+          <label class="switch-field"><input v-model="config.fitIntercept" type="checkbox" /><span>拟合截距（推荐）</span></label>
+        </div>
         <div class="parameter-panel implementation-panel">
           <div><span>实现版本</span><small>Scratch 与 sklearn 使用相同实验配置</small></div>
-          <label><span>Implementation</span><select v-model="config.implementation"><option value="scratch">Scratch 自实现</option><option value="sklearn">sklearn 对照</option></select></label>
+          <label><span>Implementation</span><select v-model="config.implementation"><option value="scratch">Scratch 自实现</option><option value="sklearn">sklearn 对照</option></select><small class="field-help">Scratch 用于展示算法原理；sklearn 是成熟库实现，可用于对照速度与结果。</small></label>
         </div>
       </section>
 
@@ -138,7 +161,8 @@ onMounted(() => {
             <em><AppIcon name="check" :size="14" /></em><span><b>{{ item.name }}</b><small>{{ item.desc }}</small></span>
           </button>
         </div>
-        <label class="seed-field"><span>随机种子</span><input v-model.number="config.seed" type="number" /><small>固定随机种子，保证数据划分和模型结果可以复现。</small></label>
+          <div class="metric-guide"><b>指标没有“统一满分”</b><p>分类优先看 Accuracy / F1，越高越好；回归看 R² 越接近 1 越好、MSE/RMSE/MAE 越低越好；聚类看 Silhouette 越高越好、Inertia 只在同一数据和同一 K 下越低越好。</p></div>
+          <label class="seed-field"><span>随机种子</span><input v-model.number="config.seed" type="number" /><small>它决定随机划分、随机采样的起点。固定为 42 代表同一配置可复现；改成其他数值可检验结果是否稳定。</small></label>
       </section>
 
       <footer class="builder-actions">

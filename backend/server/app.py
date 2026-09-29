@@ -89,7 +89,7 @@ async def health():
 @app.get("/api/datasets")
 async def datasets():
     entries = []
-    for dataset in ("iris", "wine", "breast_cancer", "digits", "diabetes"):
+    for dataset in ("iris", "wine", "breast_cancer", "digits", "moons", "circles", "diabetes", "friedman1"):
         bundle = load_dataset(dataset)
         entries.append({"id": dataset, "task_type": bundle["task_type"], "samples": len(bundle["X"]), "features": len(bundle["feature_names"]), "target_names": bundle["target_names"]})
     return entries
