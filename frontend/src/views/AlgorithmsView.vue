@@ -2,11 +2,13 @@
 import { computed, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import { algorithms, type AlgorithmItem } from '../data/catalog'
+import { algorithmEducation, modelKey } from '../data/algorithmEducation'
 
 const query = ref('')
 const family = ref('全部')
 const selected = ref<AlgorithmItem | null>(null)
-const families = ['全部', '分类', '聚类', '降维', '集成', '神经网络']
+const selectedEducation = computed(() => selected.value ? algorithmEducation[modelKey(selected.value.id)] : null)
+const families = ['全部', '分类', '回归', '聚类', '降维', '集成', '神经网络']
 const filtered = computed(() => algorithms.filter((item) => {
   const matchesFamily = family.value === '全部' || item.family === family.value
   const matchesQuery = `${item.name} ${item.shortName}`.toLowerCase().includes(query.value.toLowerCase())
@@ -38,6 +40,7 @@ const filtered = computed(() => algorithms.filter((item) => {
         <span class="algorithm-glyph large" :style="{ color: selected.accent, borderColor: `${selected.accent}55`, background: `${selected.accent}0c` }">{{ selected.shortName }}</span>
         <span class="overline">{{ selected.family }} / {{ selected.implementation }}</span><h1>{{ selected.name }}</h1><p>{{ selected.description }}</p>
         <div class="tag-row"><span v-for="tag in selected.tags" :key="tag">{{ tag }}</span></div>
+        <div class="algorithm-explainer"><b>它是怎么工作的？</b><p>{{ selectedEducation?.principle }}</p><b>什么时候适合用？</b><p>{{ selectedEducation?.useWhen }}</p><b>运行后会看到</b><ul><li v-for="chart in selectedEducation?.visuals" :key="chart">{{ chart }}</li></ul></div>
         <dl><div><dt>接口</dt><dd>BaseModel</dd></div><div><dt>状态</dt><dd>{{ selected.status === 'ready' ? '通过接口测试' : '正在开发' }}</dd></div><div><dt>版本</dt><dd>v0.1.0</dd></div></dl>
         <RouterLink :to="`/experiments/new?model=${selected.id}`" class="button primary full-button">用这个算法创建实验 <AppIcon name="arrow" :size="15" /></RouterLink>
       </aside>

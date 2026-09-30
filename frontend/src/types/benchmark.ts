@@ -12,6 +12,10 @@ export interface ExperimentConfig {
   maxDepth: number
   nEstimators: number
   learningRate: number
+  maxIterations: number
+  varSmoothing: number
+  pcaComponents: number
+  fitIntercept: boolean
   implementation: 'scratch' | 'sklearn'
   metrics: string[]
   seed: number

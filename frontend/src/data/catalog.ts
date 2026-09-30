@@ -41,7 +41,10 @@ export const datasets: DatasetItem[] = [
   { id: 'iris', name: 'Iris', task: '多分类', samples: 150, features: 4, classes: 3, description: '经典鸢尾花数据集，适合展示决策边界和基础分类流程。', accent: '#c8dbcd' },
   { id: 'wine', name: 'Wine', task: '多分类', samples: 178, features: 13, classes: 3, description: '葡萄酒化学分析数据，用于比较尺度敏感模型和树模型。', accent: '#e3d2b5' },
   { id: 'digits', name: 'Optical Digits', task: '多分类', samples: 1797, features: 64, classes: 10, description: '8×8 手写数字灰度特征，适合高维分类与降维实验。', accent: '#cbd2e3' },
+  { id: 'moons', name: 'Two Moons', task: '二分类', samples: 500, features: 2, classes: 2, description: '双月牙合成数据，适合观察非线性边界与核方法。', accent: '#d9d3ee' },
+  { id: 'circles', name: 'Concentric Circles', task: '二分类', samples: 500, features: 2, classes: 2, description: '同心圆合成数据，适合比较线性与非线性模型。', accent: '#c5e2dd' },
   { id: 'diabetes', name: 'Diabetes', task: '回归', samples: 442, features: 10, classes: 1, description: '糖尿病疾病进展预测数据集，用于线性回归与 R² 评价。', accent: '#d9c6e6' },
+  { id: 'friedman1', name: 'Friedman #1', task: '回归', samples: 600, features: 10, classes: 1, description: '带非线性结构的合成回归数据，用于观察回归拟合和残差。', accent: '#ead5b3' },
 ]
 
 export const initialRuns: ExperimentResult[] = [

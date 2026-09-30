@@ -3,7 +3,10 @@ import { benchmarkClient } from '../services/benchmark'
 import { algorithms, datasets, initialRuns } from '../data/catalog'
 import type { ExperimentConfig, ExperimentResult } from '../types/benchmark'
 
-const runs = ref<ExperimentResult[]>([...initialRuns])
+const savedRuns = (() => {
+  try { return JSON.parse(localStorage.getItem('mlbench-studio-runs') ?? '[]') as ExperimentResult[] } catch { return [] as ExperimentResult[] }
+})()
+const runs = ref<ExperimentResult[]>([...savedRuns, ...initialRuns.filter((item) => !savedRuns.some((saved) => saved.id === item.id))])
 const isRunning = ref(false)
 const progress = ref(0)
 const lastMessage = ref('')
@@ -27,6 +30,10 @@ const defaultConfig = reactive<ExperimentConfig>({
   maxDepth: 4,
   nEstimators: 50,
   learningRate: 0.1,
+  maxIterations: 800,
+  varSmoothing: 1e-9,
+  pcaComponents: 2,
+  fitIntercept: true,
   implementation: 'scratch',
   metrics: ['accuracy', 'macro_f1'],
   seed: 42,
@@ -49,6 +56,7 @@ async function runExperiment(config: ExperimentConfig) {
     result.id = `EXP-${String(serial).padStart(3, '0')}`
     result.createdAt = '刚刚'
     runs.value = [result, ...runs.value]
+    localStorage.setItem('mlbench-studio-runs', JSON.stringify(runs.value))
     progress.value = 100
     lastMessage.value = '实验已完成'
     return result
