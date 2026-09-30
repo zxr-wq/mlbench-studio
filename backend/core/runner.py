@@ -205,6 +205,7 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
     """Build chart-ready data from the actual run, shared by every frontend."""
     raw = model.get_visualization_data() or {}
     payload = {
+        **(raw if isinstance(raw, dict) else {}),
         "feature_names": list(bundle["feature_names"]),
         "target_names": list(bundle["target_names"]),
         "model_data": raw,
