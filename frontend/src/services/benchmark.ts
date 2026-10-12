@@ -100,3 +100,12 @@ class ApiBenchmarkClient implements BenchmarkClient {
 }
 
 export const benchmarkClient: BenchmarkClient = new ApiBenchmarkClient()
+
+export async function checkBackendHealth(): Promise<boolean> {
+  try {
+    const health = await request('/api/health')
+    return health?.status === 'ok'
+  } catch {
+    return false
+  }
+}

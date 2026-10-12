@@ -10,6 +10,7 @@ const route = useRoute()
 const router = useRouter()
 const { defaultConfig, isRunning, progress, lastMessage, runExperiment } = useLabStore()
 const step = ref(1)
+const errorMessage = ref('')
 const config = reactive<ExperimentConfig>({ ...defaultConfig, metrics: [...defaultConfig.metrics] })
 
 const isRegressionDataset = () => ['diabetes', 'friedman1'].includes(config.dataset)
@@ -17,6 +18,8 @@ const isCompatible = (modelId: string) => isRegressionDataset()
   ? modelId === 'linear_regression'
   : modelId !== 'linear_regression'
 const compatibleCount = computed(() => algorithms.filter((item) => isCompatible(item.id)).length)
+const selectedDataset = computed(() => datasets.find((item) => item.id === config.dataset))
+const pcaMaxComponents = computed(() => Math.max(2, Math.min(10, selectedDataset.value?.features ?? 10)))
 const canUseRocAuc = computed(() => ['breast_cancer', 'moons', 'circles'].includes(config.dataset)
   && ['knn', 'naive_bayes', 'logistic_regression'].includes(config.model))
 const taskType = computed(() => config.model === 'linear_regression' ? 'regression' : config.model === 'kmeans' ? 'clustering' : config.model === 'pca' ? 'dimensionality_reduction' : 'classification')
@@ -31,6 +34,7 @@ const metricOptions = computed(() => ({
   regression: [
     { id: 'mse', name: 'MSE', desc: '预测误差的平方平均值' },
     { id: 'rmse', name: 'RMSE', desc: '与目标量纲一致的误差' },
+    { id: 'mae', name: 'MAE', desc: '绝对误差的平均值，对极端误差不如 MSE 敏感' },
     { id: 'r2', name: 'R²', desc: '模型解释目标方差的比例' },
   ],
   clustering: [
@@ -44,7 +48,7 @@ const metricOptions = computed(() => ({
 }[taskType.value]))
 
 watch(taskType, (task) => {
-  config.metrics = task === 'regression' ? ['mse', 'rmse', 'r2']
+  config.metrics = task === 'regression' ? ['mse', 'rmse', 'mae', 'r2']
     : task === 'clustering' ? ['silhouette_score', 'inertia']
       : task === 'dimensionality_reduction' ? ['explained_variance_ratio', 'cumulative_explained_variance']
         : ['accuracy', 'macro_f1', 'precision']
@@ -62,8 +66,13 @@ function toggleMetric(metric: string) {
 }
 
 async function submit() {
-  const result = await runExperiment({ ...config })
-  router.push(`/runs/${result.id}`)
+  errorMessage.value = ''
+  try {
+    const result = await runExperiment({ ...config })
+    router.push(`/runs/${result.id}`)
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '实验运行失败，请检查本地后端。'
+  }
 }
 
 onMounted(() => {
@@ -142,7 +151,7 @@ onMounted(() => {
         </div>
         <div v-else-if="config.model === 'pca'" class="parameter-panel">
           <div><span>PCA 参数</span><small>主成分数越少，压缩越强；二维最适合观察散点分布。</small></div>
-          <label class="range-control"><span>保留主成分数 <output>{{ config.pcaComponents }}</output></span><input v-model.number="config.pcaComponents" type="range" min="2" max="10" step="1" /></label>
+          <label class="range-control"><span>保留主成分数 <output>{{ config.pcaComponents }}</output></span><input v-model.number="config.pcaComponents" type="range" min="2" :max="pcaMaxComponents" step="1" /></label>
         </div>
         <div v-else-if="config.model === 'linear_regression'" class="parameter-panel">
           <div><span>线性回归参数</span><small>截距允许拟合线不必经过坐标原点，通常建议保留。</small></div>
@@ -166,6 +175,7 @@ onMounted(() => {
       </section>
 
       <footer class="builder-actions">
+        <p v-if="errorMessage" class="experiment-error">{{ errorMessage }}<small>如果提示无法连接，请双击项目根目录的“启动本地实验台.bat”。</small></p>
         <button class="button ghost" :disabled="step === 1" @click="step -= 1">上一步</button>
         <button v-if="step < 3" class="button primary" @click="step += 1">继续 <AppIcon name="arrow" :size="15" /></button>
         <button v-else class="button primary" :disabled="isRunning" @click="submit"><AppIcon name="flask" :size="15" />{{ isRunning ? '实验运行中' : '运行实验' }}</button>

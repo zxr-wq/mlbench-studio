@@ -29,7 +29,6 @@ const value = (run: { primaryValue?: number, accuracy: number }, fallback: numbe
     <section class="runs-toolbar">
       <label class="search-box"><AppIcon name="search" :size="16" /><input v-model="query" placeholder="搜索实验、模型或数据集" /></label>
       <select v-model="modelFilter"><option v-for="model in models" :key="model">{{ model }}</option></select>
-      <button class="button ghost compact-button"><AppIcon name="filter" :size="15" />更多筛选</button>
       <span class="row-count">{{ filteredRuns.length }} runs</span>
     </section>
 
@@ -44,9 +43,9 @@ const value = (run: { primaryValue?: number, accuracy: number }, fallback: numbe
         <span class="metric-cell"><small>{{ label(run, 'accuracy') }}</small>{{ value(run, run.accuracy) }}</span>
         <span class="metric-cell secondary"><small>{{ run.secondaryMetric ?? 'f1' }}</small>{{ run.secondaryValue?.toFixed(3) ?? run.f1.toFixed(3) }}</span>
         <span>{{ run.duration.toFixed(2) }}s</span>
-        <span class="status-label"><i></i>完成</span>
+        <span class="status-label"><i></i>{{ run.status === 'completed' ? '完成' : run.status === 'failed' ? '失败' : '运行中' }}</span>
       </button>
-      <div v-if="!filteredRuns.length" class="empty-state">没有符合筛选条件的实验。</div>
+      <div v-if="!filteredRuns.length" class="empty-state"><b>{{ runs.length ? '没有符合筛选条件的实验' : '还没有真实实验记录' }}</b><p>{{ runs.length ? '请调整关键词或模型筛选。' : '实验完成后，配置、指标和可视化会出现在这里。' }}</p><RouterLink v-if="!runs.length" to="/experiments/new" class="button primary">创建实验</RouterLink></div>
     </section>
   </div>
 </template>

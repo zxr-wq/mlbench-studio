@@ -1,12 +1,13 @@
 import { computed, reactive, ref } from 'vue'
 import { benchmarkClient } from '../services/benchmark'
-import { algorithms, datasets, initialRuns } from '../data/catalog'
+import { algorithms, datasets } from '../data/catalog'
 import type { ExperimentConfig, ExperimentResult } from '../types/benchmark'
 
 const savedRuns = (() => {
   try { return JSON.parse(localStorage.getItem('mlbench-studio-runs') ?? '[]') as ExperimentResult[] } catch { return [] as ExperimentResult[] }
 })()
-const runs = ref<ExperimentResult[]>([...savedRuns, ...initialRuns.filter((item) => !savedRuns.some((saved) => saved.id === item.id))])
+// Only show experiments that were actually executed in this browser.
+const runs = ref<ExperimentResult[]>(savedRuns)
 const isRunning = ref(false)
 const progress = ref(0)
 const lastMessage = ref('')
@@ -52,7 +53,10 @@ async function runExperiment(config: ExperimentConfig) {
 
   try {
     const result = await benchmarkClient.runExperiment(config)
-    const serial = Math.max(...runs.value.map((run) => Number(run.id.replace('EXP-', '')))) + 1
+    const serial = runs.value.reduce((largest, run) => {
+      const value = Number(run.id.replace('EXP-', ''))
+      return Number.isFinite(value) ? Math.max(largest, value) : largest
+    }, 0) + 1
     result.id = `EXP-${String(serial).padStart(3, '0')}`
     result.createdAt = '刚刚'
     runs.value = [result, ...runs.value]

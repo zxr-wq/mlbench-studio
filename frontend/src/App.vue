@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AppIcon from './components/AppIcon.vue'
+import { checkBackendHealth } from './services/benchmark'
 
 const route = useRoute()
 const collapsed = ref(false)
 const searchOpen = ref(false)
 const searchQuery = ref('')
+const backendStatus = ref<'checking' | 'online' | 'offline'>('checking')
+let healthTimer: number | undefined
 
 const nav = [
   { label: '概览', to: '/', icon: 'overview' },
@@ -17,6 +20,16 @@ const nav = [
 ]
 
 const pageTitle = computed(() => String(route.meta.title || 'MLBench'))
+
+async function refreshBackendStatus() {
+  backendStatus.value = await checkBackendHealth() ? 'online' : 'offline'
+}
+
+onMounted(() => {
+  refreshBackendStatus()
+  healthTimer = window.setInterval(refreshBackendStatus, 15000)
+})
+onBeforeUnmount(() => window.clearInterval(healthTimer))
 </script>
 
 <template>
@@ -44,9 +57,9 @@ const pageTitle = computed(() => String(route.meta.title || 'MLBench'))
         </RouterLink>
       </nav>
 
-      <div class="sidebar-status">
+      <div class="sidebar-status" :class="`is-${backendStatus}`" :title="backendStatus === 'online' ? 'FastAPI 服务连接正常' : '请双击启动本地实验台.bat'">
         <span class="backend-light"></span>
-        <span><b>Mock runtime</b><small>后端接口已预留</small></span>
+        <span><b>{{ backendStatus === 'online' ? '后端已连接' : backendStatus === 'offline' ? '后端未启动' : '正在检测后端' }}</b><small>{{ backendStatus === 'online' ? 'FastAPI · WebSocket' : '双击启动本地实验台' }}</small></span>
       </div>
       <button class="collapse-button" @click="collapsed = !collapsed"><AppIcon :name="collapsed ? 'expand' : 'collapse'" :size="15" /></button>
     </aside>
@@ -56,7 +69,7 @@ const pageTitle = computed(() => String(route.meta.title || 'MLBench'))
         <div class="breadcrumb"><span>机器学习实践</span><i>/</i><b>{{ pageTitle }}</b></div>
         <div class="topbar-actions">
           <button class="command-search" @click="searchOpen = true"><AppIcon name="search" :size="15" /><span>搜索实验、算法、数据集</span><kbd>⌘ K</kbd></button>
-          <span class="term-label">2026 夏季学期</span>
+          <span class="term-label">机器学习实践 · 课程项目</span>
           <div class="member-stack"><span>ZX</span><span>+3</span></div>
         </div>
       </header>
