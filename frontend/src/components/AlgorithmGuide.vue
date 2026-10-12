@@ -11,7 +11,7 @@ const metricTips = computed(() => metricEducation[props.taskType as keyof typeof
 
 <template>
   <section class="algorithm-guide">
-    <header><span>LEARN BY THIS RUN</span><h2>小白也能读懂的实验结论</h2><p>先看图，再用下面的原则判断“这次到底跑得好不好”。</p></header>
+    <header><span>LEARN BY THIS RUN</span><h2>本次实验结论与解读</h2><p>结合指标与图表，分析本次实验的表现、适用场景与结果含义。</p></header>
     <div class="guide-columns">
       <article><b>① {{ props.model }} 的原理</b><p>{{ education?.principle ?? '该模型使用统一训练与评价流程。' }}</p><small>适合什么情况</small><p>{{ education?.useWhen }}</p></article>
       <article><b>② {{ title }}</b><div v-for="tip in metricTips" :key="tip[0]" class="metric-tip"><strong>{{ tip[0] }}</strong><p>{{ tip[1] }}</p></div></article>
