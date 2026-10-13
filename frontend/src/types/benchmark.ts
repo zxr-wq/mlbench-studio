@@ -19,6 +19,16 @@ export interface ExperimentConfig {
   implementation: 'scratch' | 'sklearn'
   metrics: string[]
   seed: number
+  stabilityRuns: 1 | 3 | 5
+}
+
+export interface EvaluationSummary {
+  strategy: 'holdout' | 'kfold'
+  repetitions: number
+  n_splits: number
+  total_runs: number
+  seeds: number[]
+  per_run?: Array<{ seed: number, fold: number, metrics: Record<string, number | number[]> }>
 }
 
 export interface ExperimentResult {
@@ -33,6 +43,8 @@ export interface ExperimentResult {
   taskType?: string
   implementation?: string
   metrics?: Record<string, number | number[]>
+  metricStd?: Record<string, number | number[]>
+  evaluation?: EvaluationSummary
   params?: Record<string, unknown>
   visualization?: Record<string, unknown>
   primaryMetric?: string

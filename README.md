@@ -14,6 +14,8 @@
 - `/datasets`：数据集目录及实验入口
 - 网页通过 FastAPI + WebSocket 发起并展示真实实验
 - 统一 Config / Result 协议、Registry / Factory / Runner
+- 支持固定 80/20、五折交叉验证以及 1/3/5 组随机种子稳定性实验
+- 结果保存均值、标准差、逐折/逐种子明细和总运行耗时
 - 已接入 10 个 Scratch 算法：Linear Regression、Logistic Regression、KNN、Gaussian NB、SVM、K-Means、PCA、Decision Tree、Random Forest、Gradient Boosting
 
 ## 本地运行
@@ -43,9 +45,10 @@ pnpm dev
 ```bash
 .venv/Scripts/python -m pytest backend/tests -q
 .venv/Scripts/python -m backend.benchmark.run_benchmark
+.venv/Scripts/python -m backend.benchmark.validate_datasets
 ```
 
-Benchmark 以任务类型分组：七个分类模型在 Iris、Wine、Breast Cancer、Digits 上对比；Linear Regression 在 Diabetes 上单独以 MSE/RMSE/MAE/R2 对比；K-Means 与 PCA 使用各自的聚类/降维指标。Scratch 与 sklearn 使用相同划分、随机种子和模型参数。
+Benchmark 以任务类型分组：七个分类模型在 Iris、Wine、Breast Cancer、Digits 上对比；Linear Regression 在 Diabetes 上单独以 MSE/RMSE/MAE/R2 对比；K-Means 与 PCA 使用各自的聚类/降维指标。Scratch 与 sklearn 使用相同划分、随机种子和模型参数。`validate_datasets` 会为 8 个内置数据集各跑一条三随机种子的代表性链路，可用于录屏前快速验收。
 
 实现与接口说明见 [B 算法与集成说明](docs/B_ALGORITHMS_AND_INTEGRATION.md)。
 
@@ -57,6 +60,6 @@ GitHub Pages 只能托管静态前端；要让公开网页运行真实训练，�
 
 ## 后续建议
 
-1. 用 42、52、62 等多个随机种子运行正式 Benchmark，并报告均值与标准差。
+1. 为 Benchmark 页面增加跨实验排序与置信区间可视化。
 2. 将 Python 后端部署到公开服务，再为 GitHub Pages 设置 `VITE_API_BASE`。
 3. 导出正式结果表、可视化截图与课程报告。

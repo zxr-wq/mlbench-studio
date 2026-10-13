@@ -59,12 +59,23 @@ def normalize_config(payload: dict) -> dict:
     test_size = float(split.get("test_size", 0.2))
     if not 0 < test_size < 1:
         raise ValueError("split.test_size must be between 0 and 1")
+    evaluation = payload.get("evaluation") or {}
+    strategy = evaluation.get("strategy", "holdout")
+    repetitions = int(evaluation.get("repetitions", 1))
+    n_splits = int(evaluation.get("n_splits", 5))
+    if strategy not in {"holdout", "kfold"}:
+        raise ValueError("evaluation.strategy must be holdout or kfold")
+    if repetitions not in {1, 3, 5}:
+        raise ValueError("evaluation.repetitions must be 1, 3, or 5")
+    if not 2 <= n_splits <= 10:
+        raise ValueError("evaluation.n_splits must be between 2 and 10")
     return {
         "dataset": dataset,
         "split": {"test_size": test_size, "random_state": int(split.get("random_state", 42))},
         "preprocessing": list(payload.get("preprocessing") or []),
         "model": {"name": name, "implementation": implementation, "params": dict(model.get("params") or {})},
         "metrics": list(payload.get("metrics") or []),
+        "evaluation": {"strategy": strategy, "repetitions": repetitions, "n_splits": n_splits},
     }
 
 

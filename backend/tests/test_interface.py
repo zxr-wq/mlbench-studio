@@ -96,6 +96,8 @@ class UnifiedResultTest(unittest.TestCase):
         "dataset",
         "params",
         "metrics",
+        "metric_std",
+        "evaluation",
         "training_time",
         "inference_time",
         "visualization",
@@ -117,6 +119,8 @@ class UnifiedResultTest(unittest.TestCase):
         self.assertEqual(set(result), self.RESULT_KEYS)
         self.assertEqual(result["task_type"], "classification")
         self.assertEqual(set(result["metrics"]), {"accuracy", "f1"})
+        self.assertEqual(set(result["metric_std"]), {"accuracy", "f1"})
+        self.assertEqual(result["evaluation"]["total_runs"], 1)
         self.assertGreaterEqual(result["training_time"], 0)
         self.assertGreaterEqual(result["inference_time"], 0)
 

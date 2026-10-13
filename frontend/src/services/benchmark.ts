@@ -36,7 +36,17 @@ function makeConfig(config: ExperimentConfig) {
     preprocessing: config.preprocessing === 'none' ? [] : [config.preprocessing],
     model: { name: config.model, implementation: config.implementation, params: params[config.model] ?? {} },
     metrics,
+    evaluation: {
+      strategy: config.split === 'kfold_5' ? 'kfold' : 'holdout',
+      n_splits: 5,
+      repetitions: config.stabilityRuns,
+    },
   }
+}
+
+function scalarMetric(value: unknown) {
+  if (Array.isArray(value)) return Number(value[value.length - 1] ?? 0)
+  return Number(value ?? 0)
 }
 
 function mapRecord(record: any): ExperimentResult {
@@ -53,9 +63,10 @@ function mapRecord(record: any): ExperimentResult {
     accuracy: Number(metrics.accuracy ?? 0), f1: Number(metrics.f1 ?? 0),
     duration: Number(result.training_time ?? 0) + Number(result.inference_time ?? 0),
     status: record.status, createdAt: '刚刚', taskType: result.task_type,
-    implementation: result.implementation, metrics, params: result.params, visualization: result.visualization,
-    primaryMetric, primaryValue: Number(metrics[primaryMetric] ?? 0),
-    secondaryMetric, secondaryValue: typeof metrics[secondaryMetric] === 'number' ? Number(metrics[secondaryMetric]) : undefined,
+    implementation: result.implementation, metrics, metricStd: result.metric_std,
+    evaluation: result.evaluation, params: result.params, visualization: result.visualization,
+    primaryMetric, primaryValue: scalarMetric(metrics[primaryMetric]),
+    secondaryMetric, secondaryValue: metrics[secondaryMetric] == null ? undefined : scalarMetric(metrics[secondaryMetric]),
   }
 }
 

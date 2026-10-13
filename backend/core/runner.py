@@ -28,10 +28,11 @@
 """
 
 import time
+from copy import deepcopy
 
 import numpy as np
 from sklearn.metrics import roc_auc_score, roc_curve
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
 from backend.core.factory import ModelFactory
 from backend.datasets.loader import load_dataset
@@ -302,8 +303,8 @@ def prepare_data(config, model_task_type=None):
     return bundle, X_train, X_test, y_train, y_test
 
 
-def run_experiment(config):
-    """执行一次统一格式的实验，返回统一 Result。"""
+def _run_holdout_once(config):
+    """执行一次固定训练/测试划分，作为重复实验与普通实验的共同基础。"""
     model_spec = config["model"]
     name = model_spec["name"]
     implementation = model_spec.get("implementation", "scratch")
@@ -349,3 +350,145 @@ def run_experiment(config):
             task_type, model, bundle, X_train, X_test, y_train, y_test
         ),
     }
+
+
+def _seeded_config(config, seed):
+    """Copy a config and consistently apply one seed to split and random models."""
+    seeded = deepcopy(config)
+    seeded.setdefault("split", {})["random_state"] = int(seed)
+    model = seeded.setdefault("model", {})
+    params = model.setdefault("params", {})
+    if model.get("name") in {"random_forest", "kmeans"}:
+        params["random_state"] = int(seed)
+    return seeded
+
+
+def _mean_and_std(metric_rows):
+    """Aggregate scalar or same-shaped vector metrics into JSON-safe mean/std values."""
+    means, deviations = {}, {}
+    for key in metric_rows[0]:
+        values = [np.asarray(row[key], dtype=float) for row in metric_rows]
+        stacked = np.stack(values)
+        mean, std = stacked.mean(axis=0), stacked.std(axis=0)
+        if mean.ndim == 0:
+            means[key] = float(mean)
+            deviations[key] = float(std)
+        else:
+            means[key] = mean.tolist()
+            deviations[key] = std.tolist()
+    return means, deviations
+
+
+def _aggregate_results(results, strategy, seeds, n_splits=1):
+    metrics, metric_std = _mean_and_std([result["metrics"] for result in results])
+    representative = results[0]
+    return {
+        **{key: value for key, value in representative.items() if not key.startswith("_")},
+        "metrics": metrics,
+        "metric_std": metric_std,
+        "training_time": round(sum(result["training_time"] for result in results), 6),
+        "inference_time": round(sum(result["inference_time"] for result in results), 6),
+        "evaluation": {
+            "strategy": strategy,
+            "repetitions": len(seeds),
+            "n_splits": int(n_splits),
+            "total_runs": len(results),
+            "seeds": [int(seed) for seed in seeds],
+            "per_run": [
+                {
+                    "seed": int(result.get("_seed", seeds[0])),
+                    "fold": int(result.get("_fold", 1)),
+                    "metrics": result["metrics"],
+                    "training_time": result["training_time"],
+                    "inference_time": result["inference_time"],
+                }
+                for result in results
+            ],
+        },
+    }
+
+
+def _run_cross_validation(config, seeds, n_splits):
+    """Run leakage-safe shuffled K-fold evaluation for supervised tasks."""
+    model_spec = config["model"]
+    name = model_spec["name"]
+    implementation = model_spec.get("implementation", "scratch")
+    requested_metrics = list(config.get("metrics", []) or [])
+    preprocessing = list(config.get("preprocessing", []) or [])
+    prototype = ModelFactory.create(name, model_spec.get("params", {}) or {}, implementation)
+    task_type = prototype.task_type
+    if task_type not in {"classification", "regression"}:
+        raise ValueError("五折交叉验证仅用于分类和回归；聚类与降维请使用固定划分")
+
+    bundle = load_dataset(config["dataset"])
+    if bundle["task_type"] != task_type:
+        raise ValueError(
+            f"模型 {name!r} 是 {task_type} 任务，不能在 {bundle['task_type']} 数据集 {config['dataset']!r} 上评价"
+        )
+    X, y = bundle["X"], bundle["y"]
+    results = []
+    for seed in seeds:
+        splitter = (
+            StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+            if task_type == "classification"
+            else KFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        )
+        for fold, (train_indices, test_indices) in enumerate(splitter.split(X, y), start=1):
+            seeded = _seeded_config(config, seed)
+            params = seeded["model"].get("params", {}) or {}
+            model = ModelFactory.create(name, params, implementation)
+            X_train, X_test = X[train_indices], X[test_indices]
+            y_train, y_test = y[train_indices], y[test_indices]
+            X_train, X_test = _preprocess(X_train, X_test, preprocessing)
+
+            started = time.perf_counter()
+            model.fit(X_train, y_train)
+            training_time = time.perf_counter() - started
+            started = time.perf_counter()
+            model.predict(X_test)
+            inference_time = time.perf_counter() - started
+            results.append({
+                "model": name,
+                "task_type": task_type,
+                "implementation": implementation,
+                "dataset": config["dataset"],
+                "params": model.get_params(),
+                "metrics": _compute_metrics(
+                    task_type, model, X_train, X_test, y_train, y_test, requested_metrics
+                ),
+                "training_time": round(training_time, 6),
+                "inference_time": round(inference_time, 6),
+                "visualization": _standard_visualization(
+                    task_type, model, bundle, X_train, X_test, y_train, y_test
+                ) if not results else {},
+                "_seed": seed,
+                "_fold": fold,
+            })
+    return _aggregate_results(results, "kfold", seeds, n_splits)
+
+
+def run_experiment(config):
+    """执行统一实验，支持固定划分、多随机种子和泄漏安全的 K 折交叉验证。"""
+    evaluation = config.get("evaluation", {}) or {}
+    strategy = evaluation.get("strategy", "holdout")
+    repetitions = int(evaluation.get("repetitions", 1))
+    if repetitions not in {1, 3, 5}:
+        raise ValueError("evaluation.repetitions 只支持 1、3 或 5")
+    base_seed = int((config.get("split", {}) or {}).get("random_state", 42))
+    seeds = [base_seed + offset for offset in range(repetitions)]
+
+    if strategy == "kfold":
+        n_splits = int(evaluation.get("n_splits", 5))
+        if not 2 <= n_splits <= 10:
+            raise ValueError("evaluation.n_splits 必须在 2 到 10 之间")
+        return _run_cross_validation(config, seeds, n_splits)
+    if strategy != "holdout":
+        raise ValueError("evaluation.strategy 只支持 holdout 或 kfold")
+
+    results = []
+    for seed in seeds:
+        result = _run_holdout_once(_seeded_config(config, seed))
+        result["_seed"] = seed
+        result["_fold"] = 1
+        results.append(result)
+    return _aggregate_results(results, "holdout", seeds, 1)

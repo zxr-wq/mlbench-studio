@@ -38,6 +38,7 @@ const defaultConfig = reactive<ExperimentConfig>({
   implementation: 'scratch',
   metrics: ['accuracy', 'macro_f1'],
   seed: 42,
+  stabilityRuns: 1,
 })
 
 async function runExperiment(config: ExperimentConfig) {

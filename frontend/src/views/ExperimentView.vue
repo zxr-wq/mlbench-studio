@@ -23,6 +23,8 @@ const pcaMaxComponents = computed(() => Math.max(2, Math.min(10, selectedDataset
 const canUseRocAuc = computed(() => ['breast_cancer', 'moons', 'circles'].includes(config.dataset)
   && ['knn', 'naive_bayes', 'logistic_regression'].includes(config.model))
 const taskType = computed(() => config.model === 'linear_regression' ? 'regression' : config.model === 'kmeans' ? 'clustering' : config.model === 'pca' ? 'dimensionality_reduction' : 'classification')
+const supportsCrossValidation = computed(() => ['classification', 'regression'].includes(taskType.value))
+const totalFits = computed(() => config.stabilityRuns * (config.split === 'kfold_5' ? 5 : 1))
 const metricOptions = computed(() => ({
   classification: [
     { id: 'accuracy', name: 'Accuracy', desc: '整体预测正确的样本比例' },
@@ -52,6 +54,9 @@ watch(taskType, (task) => {
     : task === 'clustering' ? ['silhouette_score', 'inertia']
       : task === 'dimensionality_reduction' ? ['explained_variance_ratio', 'cumulative_explained_variance']
         : ['accuracy', 'macro_f1', 'precision']
+  if (!['classification', 'regression'].includes(task) && config.split === 'kfold_5') {
+    config.split = 'stratified_80_20'
+  }
 })
 
 watch(() => config.dataset, () => {
@@ -111,7 +116,7 @@ onMounted(() => {
           </button>
         </div>
         <div class="inline-fields">
-          <label><span>划分策略</span><select v-model="config.split"><option value="stratified_80_20">固定训练 / 测试划分 · 80 / 20</option><option value="kfold_5" disabled>五折交叉验证 · 后续扩展</option></select><small class="field-help">用 80% 数据训练、20% 留作从未见过的测试集；分类任务会保持各类别比例。</small></label>
+          <label><span>划分策略</span><select v-model="config.split"><option value="stratified_80_20">固定训练 / 测试划分 · 80 / 20</option><option value="kfold_5" :disabled="!supportsCrossValidation">五折交叉验证 · 真实运行</option></select><small class="field-help">固定划分速度快；五折会轮流用每一份数据测试，结果更可靠。聚类和降维不使用五折。</small></label>
           <label><span>预处理</span><select v-model="config.preprocessing"><option value="standard_scaler">Standard Scaler</option><option value="minmax_scaler">Min-Max Scaler</option><option value="none">不处理</option></select><small class="field-help">统一特征量纲。距离、SVM、逻辑回归通常建议使用 Standard Scaler；树模型影响较小。</small></label>
         </div>
       </section>
@@ -171,7 +176,11 @@ onMounted(() => {
           </button>
         </div>
           <div class="metric-guide"><b>指标没有“统一满分”</b><p>分类优先看 Accuracy / F1，越高越好；回归看 R² 越接近 1 越好、MSE/RMSE/MAE 越低越好；聚类看 Silhouette 越高越好、Inertia 只在同一数据和同一 K 下越低越好。</p></div>
-          <label class="seed-field"><span>随机种子</span><input v-model.number="config.seed" type="number" /><small>它决定随机划分、随机采样的起点。固定为 42 代表同一配置可复现；改成其他数值可检验结果是否稳定。</small></label>
+          <div class="evaluation-fields">
+            <label class="seed-field"><span>随机种子</span><input v-model.number="config.seed" type="number" /><small>它决定随机划分、随机采样的起点。固定后可复现。</small></label>
+            <label class="seed-field"><span>稳定性重复次数</span><select v-model.number="config.stabilityRuns"><option :value="1">1 次 · 快速验证</option><option :value="3">3 次 · 推荐</option><option :value="5">5 次 · 正式实验</option></select><small>重复实验使用连续种子，并报告平均值 ± 标准差。</small></label>
+          </div>
+          <p class="fit-estimate">本次将实际训练 <b>{{ totalFits }}</b> 个模型；次数越多，结论越稳定，运行也越久。</p>
       </section>
 
       <footer class="builder-actions">
@@ -191,7 +200,7 @@ onMounted(() => {
         <div><i>3</i><span><small>MODEL</small><b>{{ algorithms.find((item) => item.id === config.model)?.name }}</b></span></div>
         <div><i>4</i><span><small>EVALUATION</small><b>{{ config.metrics.join(' + ') }}</b></span></div>
       </div>
-      <div class="repro-note"><AppIcon name="check" :size="16" /><span><b>可复现实验</b><small>配置、环境版本和随机种子将一起保存。</small></span></div>
+      <div class="repro-note"><AppIcon name="check" :size="16" /><span><b>可复现实验</b><small>{{ config.split === 'kfold_5' ? '五折交叉验证' : '固定 80 / 20 划分' }} · {{ config.stabilityRuns }} 组随机种子 · 共训练 {{ totalFits }} 次</small></span></div>
       <div v-if="isRunning" class="running-panel"><span>{{ lastMessage }}</span><b>{{ progress }}%</b><div><i :style="{ width: `${progress}%` }"></i></div></div>
     </aside>
   </div>

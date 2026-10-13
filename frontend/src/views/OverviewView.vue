@@ -80,9 +80,9 @@ const recentRuns = computed(() => runs.value.slice(0, 4))
           <small>Scratch 与 sklearn 共用统一 Runner</small>
         </div>
         <div class="next-item">
-          <span>验收建议</span>
-          <b>完成多随机种子 Benchmark</b>
-          <small>报告均值与标准差，减少单次划分的偶然性</small>
+          <span>实验可靠性</span>
+          <b>多随机种子 + 五折验证</b>
+          <small>已报告均值与标准差，减少单次划分的偶然性</small>
         </div>
         <RouterLink to="/algorithms" class="plain-link">打开算法注册表 <AppIcon name="arrow" :size="14" /></RouterLink>
       </aside>
