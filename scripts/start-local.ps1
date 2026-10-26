@@ -32,7 +32,7 @@ if (-not (Test-ListeningPort 8765)) {
 
 if (-not (Test-ListeningPort 5173)) {
     Start-Process -FilePath 'pnpm.cmd' `
-        -ArgumentList @('run', 'dev', '--', '--host', '127.0.0.1') `
+        -ArgumentList @('run', 'dev', '--host', '127.0.0.1', '--port', '5173', '--strictPort') `
         -WorkingDirectory $frontend `
         -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logs 'frontend-stdout.log') `
@@ -45,9 +45,10 @@ if (-not (Test-ListeningPort 5173)) {
 for ($attempt = 1; $attempt -le 12; $attempt++) {
     try {
         $null = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/api/health' -TimeoutSec 2
+        $null = Invoke-WebRequest -Uri 'http://127.0.0.1:5173/mlbench-studio/' -UseBasicParsing -TimeoutSec 2
         break
     } catch {
-        if ($attempt -eq 12) { throw 'Backend did not start. Check tmp/backend-stderr.log.' }
+        if ($attempt -eq 12) { throw 'Local services are not reachable. Check tmp/backend-stderr.log and tmp/frontend-stderr.log. A different app may be occupying a port.' }
         Start-Sleep -Seconds 1
     }
 }

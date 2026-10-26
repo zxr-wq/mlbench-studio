@@ -1,5 +1,3 @@
-import type { ExperimentResult } from '../types/benchmark'
-
 export interface AlgorithmItem {
   id: string
   name: string
@@ -45,13 +43,4 @@ export const datasets: DatasetItem[] = [
   { id: 'circles', name: 'Concentric Circles', task: '二分类', samples: 500, features: 2, classes: 2, description: '同心圆合成数据，适合比较线性与非线性模型。', accent: '#c5e2dd' },
   { id: 'diabetes', name: 'Diabetes', task: '回归', samples: 442, features: 10, classes: 1, description: '糖尿病疾病进展预测数据集，用于线性回归与 R² 评价。', accent: '#d9c6e6' },
   { id: 'friedman1', name: 'Friedman #1', task: '回归', samples: 600, features: 10, classes: 1, description: '带非线性结构的合成回归数据，用于观察回归拟合和残差。', accent: '#ead5b3' },
-]
-
-export const initialRuns: ExperimentResult[] = [
-  { id: 'EXP-024', model: 'SVM', dataset: 'Breast Cancer', accuracy: 0.972, f1: 0.968, duration: 1.82, status: 'completed', createdAt: '今天 15:42' },
-  { id: 'EXP-023', model: 'Random Forest', dataset: 'Wine', accuracy: 0.961, f1: 0.958, duration: 2.34, status: 'completed', createdAt: '今天 14:18' },
-  { id: 'EXP-022', model: 'Decision Tree', dataset: 'Iris', accuracy: 0.947, f1: 0.944, duration: 0.46, status: 'completed', createdAt: '昨天 20:06' },
-  { id: 'EXP-021', model: 'KNN', dataset: 'Wine', accuracy: 0.938, f1: 0.934, duration: 0.12, status: 'completed', createdAt: '昨天 18:34' },
-  { id: 'EXP-020', model: 'Naive Bayes', dataset: 'Breast Cancer', accuracy: 0.921, f1: 0.916, duration: 0.08, status: 'completed', createdAt: '9 月 7 日' },
-  { id: 'EXP-019', model: 'Logistic Regression', dataset: 'Iris', accuracy: 0.953, f1: 0.951, duration: 0.31, status: 'completed', createdAt: '9 月 7 日' },
 ]

@@ -1,0 +1,2 @@
+# Preserve the historical benchmark artifact's existing CRLF encoding.
+backend/benchmark/results/*.json -text whitespace=cr-at-eol

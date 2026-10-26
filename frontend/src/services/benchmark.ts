@@ -1,8 +1,9 @@
 import type { BenchmarkClient, ExperimentConfig, ExperimentProgress, ExperimentResult, OverviewStats } from '../types/benchmark'
 
 const apiBase = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
+function clearPending() { try { localStorage.removeItem('mlbench-pending') } catch { /* Best effort. */ } }
 const request = async (path: string, options?: RequestInit) => {
-  const response = await fetch(`${apiBase}${path}`, options)
+  const response = await fetch(`${apiBase}${path}`, { ...options, signal: AbortSignal.timeout(15000) })
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
     throw new Error(body.detail ?? `Request failed (${response.status})`)
@@ -23,13 +24,7 @@ function makeConfig(config: ExperimentConfig) {
     kmeans: { k: config.k, random_state: config.seed, n_init: 10, max_iter: 300, tol: 1e-4 },
     pca: { n_components: config.pcaComponents },
   }
-  const metrics = config.model === 'kmeans'
-    ? ['silhouette_score', 'inertia']
-    : config.model === 'pca'
-      ? ['explained_variance_ratio', 'cumulative_explained_variance']
-      : config.model === 'linear_regression'
-        ? ['mse', 'rmse', 'mae', 'r2']
-      : config.metrics.map((metric) => metric === 'macro_f1' ? 'f1' : metric)
+  const metrics = config.metrics.map((metric) => metric === 'macro_f1' ? 'f1' : metric)
   return {
     dataset: config.dataset,
     split: { test_size: 0.2, random_state: config.seed },
@@ -54,16 +49,18 @@ function mapRecord(record: any): ExperimentResult {
   if (!result) throw new Error(record.error ?? 'Experiment ended without a result')
   const metrics = result.metrics ?? {}
   const task = result.task_type as string
-  const [primaryMetric, secondaryMetric] = task === 'regression' ? ['r2', 'rmse']
+  const preferences = task === 'regression' ? ['r2', 'rmse', 'mae', 'mse']
     : task === 'clustering' ? ['silhouette_score', 'inertia']
       : task === 'dimensionality_reduction' ? ['cumulative_explained_variance', 'explained_variance_ratio']
-        : ['accuracy', 'f1']
+        : ['accuracy', 'f1', 'roc_auc', 'precision', 'recall']
+  const [primaryMetric, secondaryMetric] = preferences.filter((key) => metrics[key] != null)
   return {
-    id: record.id, model: result.model, dataset: result.dataset,
+    id: record.id, backendId: record.id, model: result.model, dataset: result.dataset,
     accuracy: Number(metrics.accuracy ?? 0), f1: Number(metrics.f1 ?? 0),
     duration: Number(result.training_time ?? 0) + Number(result.inference_time ?? 0),
+    wallDuration: record.created_at && record.finished_at ? Math.max(0,(Date.parse(record.finished_at)-Date.parse(record.created_at))/1000) : undefined,
     trainingTime: Number(result.training_time ?? 0), inferenceTime: Number(result.inference_time ?? 0),
-    status: record.status, createdAt: '刚刚', taskType: result.task_type,
+    status: record.status, createdAt: new Date(record.finished_at ?? Date.now()).toLocaleString('zh-CN'), completedAt: record.finished_at, taskType: result.task_type,
     implementation: result.implementation, metrics, metricStd: result.metric_std,
     evaluation: result.evaluation, config: record.config, params: result.params, visualization: result.visualization,
     primaryMetric, primaryValue: scalarMetric(metrics[primaryMetric]),
@@ -71,15 +68,17 @@ function mapRecord(record: any): ExperimentResult {
   }
 }
 
-async function awaitExperiment(id: string, onProgress?: (update: ExperimentProgress) => void): Promise<ExperimentResult> {
+export async function awaitExperiment(id: string, onProgress?: (update: ExperimentProgress) => void): Promise<ExperimentResult> {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const socketUrl = `${apiBase ? apiBase.replace(/^http/, 'ws') : `${protocol}//${window.location.host}`}/api/ws/experiments/${id}`
   return new Promise((resolve, reject) => {
     let settled = false
     let polling = false
-    const socket = new WebSocket(socketUrl)
+    let pollTimer: number | undefined
+    const fallbackTimer = window.setTimeout(() => startPolling(), 3000)
+    let socket:WebSocket | undefined
     const finish = (fn: (value: any) => void, value: any) => {
-      if (!settled) { settled = true; socket.close(); fn(value) }
+      if (!settled) { settled = true; window.clearTimeout(pollTimer); window.clearTimeout(fallbackTimer); socket?.close(); fn(value) }
     }
     const startPolling = () => {
       if (polling || settled) return
@@ -89,20 +88,22 @@ async function awaitExperiment(id: string, onProgress?: (update: ExperimentProgr
         try {
           const record = await request(`/api/experiments/${id}`)
           onProgress?.({ status: record.status, progress: Number(record.progress ?? 0), stage: String(record.stage ?? '') })
-          if (record.status === 'completed') return finish(resolve, mapRecord(record))
-          if (record.status === 'failed') return finish(reject, new Error(record.error ?? 'Experiment failed'))
-          window.setTimeout(poll, 400)
+          if (record.status === 'completed') { clearPending(); return finish(resolve, mapRecord(record)) }
+          if (record.status === 'failed') { clearPending(); return finish(reject, new Error(record.error ?? 'Experiment failed')) }
+          pollTimer = window.setTimeout(poll, 1500)
         } catch (error) {
           finish(reject, error)
         }
       }
       void poll()
     }
+    try { socket=new WebSocket(socketUrl) } catch {startPolling();return}
     socket.onmessage = (event) => {
-      const record = JSON.parse(event.data).experiment
+      let record
+      try { record = JSON.parse(event.data).experiment; if (!record?.status) return } catch { return }
       onProgress?.({ status: record.status, progress: Number(record.progress ?? 0), stage: String(record.stage ?? '') })
-      if (record.status === 'completed') finish(resolve, mapRecord(record))
-      if (record.status === 'failed') finish(reject, new Error(record.error ?? 'Experiment failed'))
+      if (record.status === 'completed') { clearPending(); finish(resolve, mapRecord(record)) }
+      if (record.status === 'failed') { clearPending(); finish(reject, new Error(record.error ?? 'Experiment failed')) }
     }
     socket.onerror = startPolling
     socket.onclose = startPolling
@@ -117,8 +118,11 @@ class ApiBenchmarkClient implements BenchmarkClient {
   async getRecentRuns(): Promise<ExperimentResult[]> { return [] }
   async runExperiment(config: ExperimentConfig, onProgress?: (update: ExperimentProgress) => void): Promise<ExperimentResult> {
     const created = await request('/api/experiments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(makeConfig(config)) })
+    try { localStorage.setItem('mlbench-pending', JSON.stringify({ id:created.id, config })) } catch { /* In-memory execution still works. */ }
     onProgress?.({ status: created.status, progress: 0, stage: 'queued' })
-    return awaitExperiment(created.id, onProgress)
+    const result = await awaitExperiment(created.id, onProgress)
+    try { localStorage.removeItem('mlbench-pending') } catch { /* Best effort. */ }
+    return result
   }
 }
 

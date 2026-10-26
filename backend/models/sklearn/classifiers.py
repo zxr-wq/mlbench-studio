@@ -59,7 +59,7 @@ class SklearnRandomForest(_SklearnClassifier):
     estimator_class = RandomForestClassifier
     def __init__(self, n_estimators=100, max_depth=None, max_features=None, min_samples_split=2, min_samples_leaf=1, random_state=42):
         self.n_estimators, self.max_depth, self.max_features, self.min_samples_split, self.min_samples_leaf, self.random_state = int(n_estimators), max_depth, max_features, int(min_samples_split), int(min_samples_leaf), int(random_state)
-    def _estimator_params(self): return self.get_params() | {"n_estimators": self.n_estimators, "random_state": self.random_state}
+    def _estimator_params(self): return self.get_params() | {"max_features": "sqrt" if self.max_features is None else self.max_features}
     def get_params(self): return {"n_estimators": self.n_estimators, "max_depth": self.max_depth, "max_features": self.max_features, "min_samples_split": self.min_samples_split, "min_samples_leaf": self.min_samples_leaf, "random_state": self.random_state}
 
 

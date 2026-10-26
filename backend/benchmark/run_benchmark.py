@@ -14,6 +14,7 @@
 
 import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.core.factory import ModelFactory
@@ -171,7 +172,11 @@ def compare_scratch_sklearn(name, dataset):
 
 def run_full_benchmark(classification_datasets=CLASSIFICATION_DATASETS, regression_datasets=REGRESSION_DATASETS):
     """按任务分开的完整 Benchmark，不产生跨任务的虚假 Accuracy 排名。"""
-    payload = {"results": [], "comparisons": []}
+    payload = {"metadata": {"status": "fresh_run", "generated_at": datetime.now(timezone.utc).isoformat(),
+                            "classification_datasets": list(classification_datasets),
+                            "regression_datasets": list(regression_datasets),
+                            "evaluation": "holdout", "test_size": 0.2, "random_state": 42},
+               "results": [], "comparisons": []}
     for dataset in classification_datasets:
         for task_type in ("classification", "clustering", "dimensionality_reduction"):
             payload["results"].extend(benchmark_task(task_type, dataset))

@@ -2,7 +2,7 @@ name: Verify integration
 
 on:
   push:
-    branches: [main, integration/v2]
+    branches: [main, integration/v2, 'codex/**']
   pull_request:
 
 jobs:

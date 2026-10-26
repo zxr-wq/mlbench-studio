@@ -1,4 +1,8 @@
 {
+  "metadata": {
+    "status": "historical_baseline",
+    "note": "Historical results from before the final visualization delivery audit. Do not use these values as current-version acceptance results. Regenerate with python -m backend.benchmark.run_benchmark, or run the live Benchmark page."
+  },
   "results": [
     {
       "model": "decision_tree",

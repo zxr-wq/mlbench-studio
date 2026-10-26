@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import { algorithms, datasets } from '../data/catalog'
@@ -8,14 +8,14 @@ import type { ExperimentConfig } from '../types/benchmark'
 
 const route = useRoute()
 const router = useRouter()
-const { defaultConfig, isRunning, progress, lastMessage, storageNotice, runExperiment } = useLabStore()
+const { runs, defaultConfig, isRunning, progress, lastMessage, storageNotice, runExperiment } = useLabStore()
 const step = ref(1)
 const errorMessage = ref('')
 const config = reactive<ExperimentConfig>({ ...defaultConfig, metrics: [...defaultConfig.metrics] })
 
 const isRegressionDataset = () => ['diabetes', 'friedman1'].includes(config.dataset)
 const isCompatible = (modelId: string) => isRegressionDataset()
-  ? modelId === 'linear_regression'
+  ? ['linear_regression','kmeans','pca'].includes(modelId)
   : modelId !== 'linear_regression'
 const compatibleCount = computed(() => algorithms.filter((item) => isCompatible(item.id)).length)
 const selectedDataset = computed(() => datasets.find((item) => item.id === config.dataset))
@@ -60,8 +60,9 @@ watch(taskType, (task) => {
 })
 
 watch(() => config.dataset, () => {
-  if (isRegressionDataset() && config.model !== 'linear_regression') config.model = 'linear_regression'
+  if (!isCompatible(config.model)) config.model = isRegressionDataset() ? 'linear_regression' : 'knn'
   if (!isRegressionDataset() && config.model === 'linear_regression') config.model = 'svm'
+  config.pcaComponents = Math.min(config.pcaComponents, pcaMaxComponents.value)
 })
 
 watch(canUseRocAuc, (supported) => {
@@ -78,8 +79,11 @@ function toggleMetric(metric: string) {
 
 async function submit() {
   errorMessage.value = ''
+  if (!Number.isInteger(config.seed) || config.seed < 0 || config.seed > 4294967290) {
+    errorMessage.value = '请输入 0 到 4294967290 之间的整数随机种子。'; return
+  }
   try {
-    const result = await runExperiment({ ...config })
+    const result = await runExperiment({ ...config, metrics: [...config.metrics] })
     router.push(`/runs/${result.id}`)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '实验运行失败，请检查本地后端。'
@@ -87,10 +91,14 @@ async function submit() {
 }
 
 onMounted(() => {
+  if (typeof route.query.rerun === 'string') {
+    const previous = runs.value.find((run)=>run.id===route.query.rerun)
+    if (previous?.inputConfig) { Object.assign(config, previous.inputConfig, { metrics:[...previous.inputConfig.metrics] }); step.value=3; void nextTick(()=>{config.metrics=[...previous.inputConfig!.metrics]}) }
+  }
   if (typeof route.query.dataset === 'string' && datasets.some((item) => item.id === route.query.dataset)) {
     config.dataset = route.query.dataset
   }
-  if (typeof route.query.model === 'string' && isCompatible(route.query.model)) {
+  if (typeof route.query.model === 'string' && algorithms.some((item)=>item.id===route.query.model) && isCompatible(route.query.model)) {
     config.model = route.query.model
     step.value = 2
   }
@@ -107,7 +115,7 @@ onMounted(() => {
       </header>
 
       <ol class="step-nav">
-        <li v-for="item in [{ n: 1, t: '选择数据' }, { n: 2, t: '选择算法' }, { n: 3, t: '评价设置' }]" :key="item.n" :class="{ active: step === item.n, done: step > item.n }" @click="step = item.n">
+        <li v-for="item in [{ n: 1, t: '选择数据' }, { n: 2, t: '选择算法' }, { n: 3, t: '评价设置' }]" :key="item.n" :class="{ active: step === item.n, done: step > item.n }" role="button" tabindex="0" :aria-current="step===item.n ? 'step' : undefined" @click="step = item.n" @keydown.enter.prevent="step=item.n" @keydown.space.prevent="step=item.n">
           <span>{{ step > item.n ? '✓' : item.n }}</span><b>{{ item.t }}</b>
         </li>
       </ol>
@@ -132,7 +140,7 @@ onMounted(() => {
         <div class="choice-grid model-choice-grid">
           <button v-for="item in algorithms" :key="item.id" :disabled="!isCompatible(item.id)" :class="{ selected: config.model === item.id, incompatible: !isCompatible(item.id) }" @click="config.model = item.id">
             <span class="model-monogram" :style="{ color: item.accent, borderColor: `${item.accent}55` }">{{ item.shortName }}</span>
-            <span><b>{{ item.name }}</b><small>{{ isCompatible(item.id) ? item.implementation : (item.id === 'linear_regression' ? '仅适用于 Diabetes / Friedman 回归数据' : '当前为回归数据集，仅支持线性回归') }}</small></span>
+            <span><b>{{ item.name }}</b><small>{{ isCompatible(item.id) ? item.implementation : (item.id === 'linear_regression' ? '需要连续目标的回归数据集' : '分类模型不适用于连续回归目标') }}</small></span>
             <em><AppIcon name="check" :size="13" /></em>
           </button>
         </div>
@@ -153,7 +161,7 @@ onMounted(() => {
         </div>
         <div v-else-if="config.model === 'logistic_regression'" class="parameter-panel">
           <div><span>逻辑回归参数</span><small>学习率决定每一步更新幅度；迭代次数越高，收敛机会越大但越慢。</small></div>
-          <label class="range-control"><span>学习率 <output>{{ config.learningRate.toFixed(2) }}</output></span><input v-model.number="config.learningRate" type="range" min="0.01" max="0.3" step="0.01" /></label>
+          <label class="range-control"><span>学习率 <output>{{ config.learningRate.toFixed(2) }}</output></span><input v-model.number="config.learningRate" type="range" min="0.01" max="0.3" step="0.01" :disabled="config.implementation==='sklearn'"/><small v-if="config.implementation==='sklearn'" class="field-help">sklearn 对照使用 L-BFGS 求解器；学习率仅用于 Scratch 梯度下降。</small></label>
           <label class="range-control"><span>最大迭代次数 <output>{{ config.maxIterations }}</output></span><input v-model.number="config.maxIterations" type="range" min="100" max="2000" step="100" /></label>
         </div>
         <div v-else-if="config.model === 'naive_bayes'" class="parameter-panel">
@@ -183,14 +191,14 @@ onMounted(() => {
         </div>
           <div class="metric-guide"><b>指标没有“统一满分”</b><p>分类优先看 Accuracy / F1，越高越好；回归看 R² 越接近 1 越好、MSE/RMSE/MAE 越低越好；聚类看 Silhouette 越高越好、Inertia 只在同一数据和同一 K 下越低越好。</p></div>
           <div class="evaluation-fields">
-            <label class="seed-field"><span>随机种子</span><input v-model.number="config.seed" type="number" /><small>它决定随机划分、随机采样的起点。固定后可复现。</small></label>
+            <label class="seed-field"><span>随机种子</span><input v-model.number="config.seed" type="number" min="0" max="4294967290" step="1" required /><small>它决定随机划分、随机采样的起点。固定后可复现。</small></label>
             <label class="seed-field"><span>稳定性重复次数</span><select v-model.number="config.stabilityRuns"><option :value="1">1 次 · 快速验证</option><option :value="3">3 次 · 推荐</option><option :value="5">5 次 · 正式实验</option></select><small>重复实验使用连续种子，并报告平均值 ± 标准差。</small></label>
           </div>
           <p class="fit-estimate">本次将实际训练 <b>{{ totalFits }}</b> 个模型；次数越多，结论越稳定，运行也越久。</p>
       </section>
 
       <footer class="builder-actions">
-        <p v-if="errorMessage || storageNotice" class="experiment-error" :class="{ notice: !errorMessage }">{{ errorMessage || storageNotice }}<small v-if="errorMessage">如果提示无法连接，请双击项目根目录的“启动本地实验台.bat”。</small></p>
+        <p v-if="errorMessage || storageNotice" class="experiment-error" :class="{ notice: !errorMessage }" role="alert">{{ errorMessage || storageNotice }}<small v-if="errorMessage && /fetch|network|连接|timeout|abort/i.test(errorMessage)">请双击项目根目录的“启动本地实验台.bat”，再重试。</small></p>
         <button class="button ghost" :disabled="step === 1" @click="step -= 1">上一步</button>
         <button v-if="step < 3" class="button primary" @click="step += 1">继续 <AppIcon name="arrow" :size="15" /></button>
         <button v-else class="button primary" :disabled="isRunning" @click="submit"><AppIcon name="flask" :size="15" />{{ isRunning ? '实验运行中' : '运行实验' }}</button>

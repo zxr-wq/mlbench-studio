@@ -3,8 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AppIcon from './components/AppIcon.vue'
 import { checkBackendHealth } from './services/benchmark'
+import { algorithms, datasets } from './data/catalog'
+import { useLabStore } from './stores/lab'
 
 const route = useRoute()
+const { isRunning, progress, lastMessage, runs } = useLabStore()
 const collapsed = ref(false)
 const searchOpen = ref(false)
 const searchQuery = ref('')
@@ -15,21 +18,30 @@ const nav = [
   { label: '概览', to: '/', icon: 'overview' },
   { label: '创建实验', to: '/experiments/new', icon: 'flask' },
   { label: '运行记录', to: '/runs', icon: 'runs' },
+  { label: 'Benchmark', to: '/benchmark', icon: 'runs' },
   { label: '算法库', to: '/algorithms', icon: 'algorithm' },
   { label: '数据集', to: '/datasets', icon: 'dataset' },
 ]
 
 const pageTitle = computed(() => String(route.meta.title || 'MLBench'))
+const searchResults=computed(()=>[
+  ...nav.map((item)=>({to:item.to,title:item.label,type:'页面'})),
+  ...algorithms.map((item)=>({to:`/experiments/new?model=${item.id}`,title:item.name,type:'算法'})),
+  ...datasets.map((item)=>({to:`/experiments/new?dataset=${item.id}`,title:item.name,type:'数据集'})),
+  ...runs.value.map((item)=>({to:`/runs/${item.id}`,title:`${item.id} ${item.model} ${item.dataset}`,type:'实验'})),
+].filter((item)=>item.title.toLowerCase().includes(searchQuery.value.toLowerCase())).slice(0,12))
+function shortcut(event:KeyboardEvent) { if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k') { event.preventDefault(); searchOpen.value=!searchOpen.value } if(event.key==='Escape') searchOpen.value=false }
 
 async function refreshBackendStatus() {
   backendStatus.value = await checkBackendHealth() ? 'online' : 'offline'
 }
 
 onMounted(() => {
+  window.addEventListener('keydown',shortcut)
   refreshBackendStatus()
   healthTimer = window.setInterval(refreshBackendStatus, 15000)
 })
-onBeforeUnmount(() => window.clearInterval(healthTimer))
+onBeforeUnmount(() => {window.clearInterval(healthTimer); window.removeEventListener('keydown',shortcut)})
 </script>
 
 <template>
@@ -65,6 +77,7 @@ onBeforeUnmount(() => window.clearInterval(healthTimer))
     </aside>
 
     <section class="app-frame">
+      <div v-if="isRunning" class="active-run-banner" role="status"><b>真实实验运行中 · {{ progress }}%</b><span>{{ lastMessage }}</span><RouterLink to="/experiments/new">查看运行状态 →</RouterLink></div>
       <header class="app-topbar">
         <div class="breadcrumb"><span>机器学习实践</span><i>/</i><b>{{ pageTitle }}</b></div>
         <div class="topbar-actions">
@@ -74,7 +87,7 @@ onBeforeUnmount(() => window.clearInterval(healthTimer))
         </div>
       </header>
       <RouterView v-slot="{ Component }">
-        <Transition name="page" mode="out-in"><component :is="Component" /></Transition>
+        <Transition name="page" mode="out-in"><component :is="Component" :key="route.fullPath" /></Transition>
       </RouterView>
     </section>
 
@@ -83,9 +96,8 @@ onBeforeUnmount(() => window.clearInterval(healthTimer))
         <label><AppIcon name="search" :size="19" /><input v-model="searchQuery" autofocus placeholder="搜索实验、算法或数据集…" /><button @click="searchOpen = false">ESC</button></label>
         <div class="command-results">
           <span>快速跳转</span>
-          <RouterLink to="/experiments/new" @click="searchOpen = false"><AppIcon name="flask" :size="16" /><b>创建新实验</b><small>Builder</small></RouterLink>
-          <RouterLink to="/runs" @click="searchOpen = false"><AppIcon name="runs" :size="16" /><b>查看运行记录</b><small>Experiments</small></RouterLink>
-          <RouterLink to="/algorithms" @click="searchOpen = false"><AppIcon name="algorithm" :size="16" /><b>打开算法库</b><small>Registry</small></RouterLink>
+          <RouterLink v-for="item in searchResults" :key="item.to" :to="item.to" @click="searchOpen=false"><AppIcon name="search" :size="16"/><b>{{ item.title }}</b><small>{{ item.type }}</small></RouterLink>
+          <p v-if="!searchResults.length" class="run-message">未找到相关记录。</p>
         </div>
       </div>
     </div>

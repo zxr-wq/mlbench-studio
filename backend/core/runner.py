@@ -35,6 +35,7 @@ from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
 from backend.core.factory import ModelFactory
+from backend.core.visualization import classification_diagnostics, project, projection_basis
 from backend.datasets.loader import load_dataset
 from backend.metrics import classification as clf_metrics
 from backend.metrics import clustering, dimensionality, regression
@@ -133,15 +134,9 @@ def _compute_metrics(task_type, model, X_train, X_test, y_train, y_test, request
 
 
 def _project_2d(X, reference=None):
-    """A small dependency-free PCA projection for result visualizations."""
-    X = np.asarray(X, dtype=float)
-    center = X.mean(axis=0) if reference is None else np.asarray(reference, dtype=float).mean(axis=0)
-    _, _, vectors = np.linalg.svd(X - center, full_matrices=False)
-    basis = vectors[: min(2, X.shape[1])]
-    projection = (X - center) @ basis.T
-    if projection.shape[1] == 1:
-        projection = np.column_stack([projection[:, 0], np.zeros(len(projection))])
-    return projection
+    """Fit projection directions on training reference, never on test observations."""
+    center, basis = projection_basis(X if reference is None else reference)
+    return project(X, center, basis)
 
 
 def _histogram(values, bins=12):
@@ -191,6 +186,11 @@ def _feature_contributions(model, feature_names):
         coefficients = getattr(model.model_, "coef_", None)
     if coefficients is None:
         coefficients = getattr(model, "weights_", None)
+        if coefficients is not None:
+            # Scratch Softmax stores (features, classes); sklearn coef_ stores
+            # (classes, features). Reduce the class axis, not the feature axis.
+            values = np.asarray(coefficients, dtype=float)
+            coefficients = values.T if values.ndim > 1 else values
     if coefficients is not None:
         values = np.asarray(coefficients, dtype=float)
         scores = np.abs(values).mean(axis=0) if values.ndim > 1 else np.abs(values)
@@ -237,6 +237,7 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
         matrix = [[int(((y_test == actual) & (prediction == predicted)).sum()) for predicted in labels] for actual in labels]
         coordinates = _project_2d(X_test, X_train)
         payload["classification"] = {
+            "projection_method": "PCA fitted on training data",
             "labels": [str(bundle["target_names"][int(label)]) if int(label) < len(bundle["target_names"]) else str(label) for label in labels],
             "confusion_matrix": matrix,
             "actual_distribution": [int((y_test == label).sum()) for label in labels],
@@ -262,14 +263,17 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
         tree_structure = _named_tree(raw, bundle["feature_names"])
         if tree_structure:
             payload["tree_structure"] = tree_structure
+        payload.update(classification_diagnostics(model, bundle, X_train, X_test, y_train, y_test))
     elif task_type == "regression":
         prediction = model.predict(X_test)
         residuals = np.asarray(y_test, dtype=float) - np.asarray(prediction, dtype=float)
         payload["regression"] = {
             "pairs": [
                 {"actual": round(float(actual), 4), "predicted": round(float(predicted), 4)}
-                for actual, predicted in zip(y_test[:180], prediction[:180])
+                for actual, predicted in zip(y_test, prediction)
             ],
+            "residuals": [{"predicted": float(predicted), "residual": float(residual)}
+                          for predicted, residual in zip(prediction, residuals)],
             "residual_histogram": _histogram(residuals),
         }
         contribution = _feature_contributions(model, bundle["feature_names"])
@@ -285,6 +289,7 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
         labels = np.asarray(model.labels_, dtype=int)
         raw_history = raw.get("centroid_history", []) if isinstance(raw, dict) else []
         centroid_history = []
+        iterations = []
         for step in raw_history:
             projected = (np.asarray(step, dtype=float) - center) @ basis.T
             if projected.shape[1] == 1:
@@ -293,6 +298,10 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
                 {"x": round(float(row[0]), 5), "y": round(float(row[1]), 5)}
                 for row in projected
             ])
+            distances = ((np.asarray(X_train)[:, None, :] - np.asarray(step)[None, :, :]) ** 2).sum(axis=2)
+            assignment = distances.argmin(axis=1)
+            iterations.append({"labels": assignment.astype(int).tolist(),
+                               "inertia": float(distances[np.arange(len(X_train)), assignment].sum())})
         payload["clustering"] = {
             "points": [
                 {"x": round(float(x), 5), "y": round(float(y), 5), "cluster": int(label)}
@@ -300,12 +309,15 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
             ],
             "sizes": [int((labels == index).sum()) for index in range(int(labels.max()) + 1)],
             "centroid_history": centroid_history,
+            "iterations": iterations,
         }
     else:
         projection = model.transform(X_test)
+        if bundle["task_type"] == "regression":
+            payload["target_names"] = ["样本（连续目标不作为类别）"]
         payload["pca"] = {
             "points": [
-                {"x": round(float(row[0]), 5), "y": round(float(row[1] if len(row) > 1 else 0), 5), "label": int(label)}
+                {"x": round(float(row[0]), 5), "y": round(float(row[1] if len(row) > 1 else 0), 5), "label": int(label) if bundle["task_type"] == "classification" else 0}
                 for row, label in zip(projection, y_test)
             ],
             "explained_variance_ratio": np.asarray(model.explained_variance_ratio_, dtype=float).tolist(),
@@ -316,6 +328,8 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
             round(float(item.get("loss", 0) if isinstance(item, dict) else item), 7)
             for item in loss_history
         ]
+        payload["loss_iterations"] = [int(item.get("epoch", index) if isinstance(item, dict) else index)
+                                      for index, item in enumerate(loss_history)]
     return payload
 
 
@@ -342,7 +356,7 @@ def prepare_data(config, model_task_type=None):
     return bundle, X_train, X_test, y_train, y_test
 
 
-def _run_holdout_once(config):
+def _run_holdout_once(config, include_visualization=True):
     """执行一次固定训练/测试划分，作为重复实验与普通实验的共同基础。"""
     model_spec = config["model"]
     name = model_spec["name"]
@@ -387,7 +401,7 @@ def _run_holdout_once(config):
         "inference_time": round(inference_time, 6),
         "visualization": _standard_visualization(
             task_type, model, bundle, X_train, X_test, y_train, y_test
-        ),
+        ) if include_visualization else {},
     }
 
 
@@ -407,6 +421,13 @@ def _mean_and_std(metric_rows):
     means, deviations = {}, {}
     for key in metric_rows[0]:
         values = [np.asarray(row[key], dtype=float) for row in metric_rows]
+        # PCA variance-threshold fits may retain different component counts.
+        # Missing explained components contribute zero; cumulative ratios plateau.
+        if values[0].ndim == 1 and len({len(value) for value in values}) > 1:
+            length = max(len(value) for value in values)
+            values = [np.pad(value, (0, length - len(value)),
+                             mode="edge" if key == "cumulative_explained_variance" else "constant")
+                      for value in values]
         stacked = np.stack(values)
         mean, std = stacked.mean(axis=0), stacked.std(axis=0)
         if mean.ndim == 0:
@@ -421,10 +442,18 @@ def _mean_and_std(metric_rows):
 def _aggregate_results(results, strategy, seeds, n_splits=1):
     metrics, metric_std = _mean_and_std([result["metrics"] for result in results])
     representative = results[0]
+    visualization = deepcopy(representative.get("visualization", {}))
+    visualization["provenance"] = {
+        "seed": int(representative.get("_seed", seeds[0])),
+        "fold": int(representative.get("_fold", 1)),
+        "strategy": strategy, "total_runs": len(results),
+        "metrics": representative["metrics"],
+    }
     return {
         **{key: value for key, value in representative.items() if not key.startswith("_")},
         "metrics": metrics,
         "metric_std": metric_std,
+        "visualization": visualization,
         "training_time": round(sum(result["training_time"] for result in results), 6),
         "inference_time": round(sum(result["inference_time"] for result in results), 6),
         "evaluation": {
@@ -447,7 +476,7 @@ def _aggregate_results(results, strategy, seeds, n_splits=1):
     }
 
 
-def _run_cross_validation(config, seeds, n_splits):
+def _run_cross_validation(config, seeds, n_splits, on_progress=None):
     """Run leakage-safe shuffled K-fold evaluation for supervised tasks."""
     model_spec = config["model"]
     name = model_spec["name"]
@@ -503,10 +532,12 @@ def _run_cross_validation(config, seeds, n_splits):
                 "_seed": seed,
                 "_fold": fold,
             })
+            if on_progress:
+                on_progress(len(results), len(seeds) * n_splits)
     return _aggregate_results(results, "kfold", seeds, n_splits)
 
 
-def run_experiment(config):
+def run_experiment(config, on_progress=None):
     """执行统一实验，支持固定划分、多随机种子和泄漏安全的 K 折交叉验证。"""
     evaluation = config.get("evaluation", {}) or {}
     strategy = evaluation.get("strategy", "holdout")
@@ -520,14 +551,16 @@ def run_experiment(config):
         n_splits = int(evaluation.get("n_splits", 5))
         if not 2 <= n_splits <= 10:
             raise ValueError("evaluation.n_splits 必须在 2 到 10 之间")
-        return _run_cross_validation(config, seeds, n_splits)
+        return _run_cross_validation(config, seeds, n_splits, on_progress)
     if strategy != "holdout":
         raise ValueError("evaluation.strategy 只支持 holdout 或 kfold")
 
     results = []
     for seed in seeds:
-        result = _run_holdout_once(_seeded_config(config, seed))
+        result = _run_holdout_once(_seeded_config(config, seed), include_visualization=not results)
         result["_seed"] = seed
         result["_fold"] = 1
         results.append(result)
+        if on_progress:
+            on_progress(len(results), len(seeds))
     return _aggregate_results(results, "holdout", seeds, 1)

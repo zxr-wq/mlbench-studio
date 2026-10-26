@@ -4,21 +4,25 @@
 
 在线预览：<https://zxr-wq.github.io/mlbench-studio/>
 
-当前版本用于确认页面结构和产品方向。界面采用“实验室工作台”风格，并将不同任务拆分为独立路由：
+界面采用米白色“实验室工作台”风格，不同任务拆分为独立路由：
 
 - `/`：项目概览、近期实验和当前开发进度
 - `/experiments/new`：三步式实验配置与运行流程
 - `/runs`：支持搜索和模型筛选的实验记录表
 - `/runs/:id`：指标、混淆矩阵和配置详情
+- `/benchmark`：运行真实批量实验、按评价条件分组对比、导出结果集
 - `/algorithms`：支持分类筛选与详情抽屉的算法注册表
 - `/datasets`：数据集目录及实验入口
 - 网页通过 FastAPI + WebSocket 发起并展示真实实验
 - 统一 Config / Result 协议、Registry / Factory / Runner
 - 支持固定 80/20、五折交叉验证以及 1/3/5 组随机种子稳定性实验
 - 结果保存均值、标准差、逐折/逐种子明细和总运行耗时
-- 进度状态来自后端实际阶段；历史摘要保存在 localStorage，完整图表保存在 IndexedDB
-- 决策树前四层结构、K-Means 质心轨迹、混淆矩阵、ROC、残差、特征贡献和损失曲线等任务相关可视化
-- 单次实验可下载包含完整配置的 JSON，以及兼容向量指标的 CSV
+- 进度状态来自后端实际完成的训练次数；前端历史摘要保存在 localStorage，完整图表保存在 IndexedDB，后端结果另保存在本机 SQLite
+- 实验中刷新后可恢复连接；后端重启不会丢失已完成结果，尚未完成的实验会提示重新运行
+- KNN 真实近邻投票、二维 SVM 决策区域与支持向量、K-Means 逐轮播放、树结构、集成规模与性能变化，以及任务相关诊断图
+- 每张图明确记录代表性运行的种子与折数，多次指标使用均值和标准差，二者不会混淆
+- 单次与批量实验可下载完整 JSON、指标 CSV；运行记录页可导入 JSON 恢复历史
+- 图表支持放大、SVG 图片下载、坐标刻度、图例与悬停读数；Digits 混淆矩阵支持滚动与按行归一化
 - 已接入 10 个 Scratch 算法：Linear Regression、Logistic Regression、KNN、Gaussian NB、SVM、K-Means、PCA、Decision Tree、Random Forest、Gradient Boosting
 
 ## 本地运行
@@ -39,7 +43,7 @@ pnpm install
 pnpm dev
 ```
 
-浏览器访问 `http://127.0.0.1:5173`。
+浏览器访问 `http://127.0.0.1:5173/mlbench-studio/`。
 
 首次完成上述依赖安装后，电脑重启后无需重新部署或安装：双击项目根目录的 `启动本地实验台.bat`，再访问 `http://127.0.0.1:5173/mlbench-studio/` 即可恢复前后端真实实验环境。
 
@@ -57,6 +61,7 @@ Scratch SVM 用教学版核方法实现，在 Breast Cancer、Digits 或多折�
 
 实现与接口说明见 [B 算法与集成说明](docs/B_ALGORITHMS_AND_INTEGRATION.md)。
 提交前检查见 [最终提交检查清单](docs/FINAL_SUBMISSION_CHECKLIST.md)。
+可视化使用方法、验收范围和已知边界见 [网站交付说明](docs/WEBSITE_DELIVERY.md)。
 
 推送到 `main` 分支后，GitHub Actions 会自动构建并发布 GitHub Pages。
 
@@ -66,6 +71,6 @@ GitHub Pages 只能托管静态前端；要让公开网页运行真实训练，�
 
 ## 后续建议
 
-1. 为 Benchmark 页面增加跨实验排序与置信区间可视化。
+1. 根据正式实验结果扩展统计分析；均值 ± 标准差不等于置信区间。
 2. 将 Python 后端部署到公开服务，再为 GitHub Pages 设置 `VITE_API_BASE`。
 3. 导出正式结果表、可视化截图与课程报告。

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import { algorithms, type AlgorithmItem } from '../data/catalog'
 import { algorithmEducation, modelKey } from '../data/algorithmEducation'
@@ -8,7 +8,10 @@ const query = ref('')
 const family = ref('全部')
 const selected = ref<AlgorithmItem | null>(null)
 const selectedEducation = computed(() => selected.value ? algorithmEducation[modelKey(selected.value.id)] : null)
-const families = ['全部', '分类', '回归', '聚类', '降维', '集成', '神经网络']
+const families = ['全部', ...new Set(algorithms.map((item)=>item.family))]
+function closeOnEscape(event:KeyboardEvent) { if(event.key==='Escape') selected.value=null }
+window.addEventListener('keydown',closeOnEscape)
+onBeforeUnmount(()=>window.removeEventListener('keydown',closeOnEscape))
 const filtered = computed(() => algorithms.filter((item) => {
   const matchesFamily = family.value === '全部' || item.family === family.value
   const matchesQuery = `${item.name} ${item.shortName}`.toLowerCase().includes(query.value.toLowerCase())
@@ -35,8 +38,8 @@ const filtered = computed(() => algorithms.filter((item) => {
     </section>
 
     <div v-if="selected" class="drawer-backdrop" @click.self="selected = null">
-      <aside class="detail-drawer">
-        <button class="drawer-close" @click="selected = null">×</button>
+      <aside class="detail-drawer" role="dialog" aria-modal="true" :aria-label="selected.name">
+        <button class="drawer-close" aria-label="关闭算法说明" @click="selected = null">×</button>
         <span class="algorithm-glyph large" :style="{ color: selected.accent, borderColor: `${selected.accent}55`, background: `${selected.accent}0c` }">{{ selected.shortName }}</span>
         <span class="overline">{{ selected.family }} / {{ selected.implementation }}</span><h1>{{ selected.name }}</h1><p>{{ selected.description }}</p>
         <div class="tag-row"><span v-for="tag in selected.tags" :key="tag">{{ tag }}</span></div>

@@ -38,6 +38,7 @@ export interface ExperimentResult {
   accuracy: number
   f1: number
   duration: number
+  wallDuration?: number
   trainingTime?: number
   inferenceTime?: number
   status: RunStatus
@@ -48,6 +49,9 @@ export interface ExperimentResult {
   metricStd?: Record<string, number | number[]>
   evaluation?: EvaluationSummary
   config?: Record<string, unknown>
+  inputConfig?: ExperimentConfig
+  backendId?: string
+  completedAt?: string
   params?: Record<string, unknown>
   visualization?: Record<string, unknown>
   primaryMetric?: string

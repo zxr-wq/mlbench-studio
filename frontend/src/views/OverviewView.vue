@@ -8,13 +8,15 @@ import type { ExperimentResult } from '../types/benchmark'
 
 const { runs, stats } = useLabStore()
 const bestRun = computed(() => [...runs.value]
-  .filter((run) => (run.taskType ?? 'classification') === 'classification')
-  .sort((a, b) => (b.primaryValue ?? b.accuracy) - (a.primaryValue ?? a.accuracy))[0])
+  .filter((run) => (run.taskType ?? 'classification') === 'classification' && run.metrics?.accuracy != null)
+  .sort((a, b) => Number(b.metrics?.accuracy) - Number(a.metrics?.accuracy))[0])
 const recentRuns = computed(() => runs.value.slice(0, 4))
 const metricLabel = (metric?: string) => ({ accuracy: 'Accuracy', f1: 'Macro F1', r2: 'R²', rmse: 'RMSE', silhouette_score: 'Silhouette', inertia: 'Inertia', cumulative_explained_variance: '累计解释方差' }[metric ?? 'accuracy'] ?? metric ?? '主要指标')
 const metricValue = (run: ExperimentResult) => Number(run.primaryValue ?? run.accuracy).toFixed(3)
 const modelName = (id: string) => algorithms.find((item) => item.id === id)?.name ?? id
 const datasetName = (id: string) => datasets.find((item) => item.id === id)?.name ?? id
+const accuracyRuns=computed(()=>runs.value.filter((run)=>run.taskType==='classification'&&typeof run.metrics?.accuracy==='number').slice(0,12).reverse())
+const accuracyLine=computed(()=>accuracyRuns.value.map((run,i)=>`${12+i*436/Math.max(1,accuracyRuns.value.length-1)},${100-Number(run.metrics?.accuracy)*90}`).join(' '))
 </script>
 
 <template>
@@ -37,15 +39,14 @@ const datasetName = (id: string) => datasets.find((item) => item.id === id)?.nam
           <span>{{ bestRun ? '最佳测试准确率' : '等待首次真实实验' }}</span>
           <span class="live-mark"><i></i> REAL RUNS</span>
         </div>
-        <strong v-if="bestRun">{{ ((bestRun.primaryValue ?? bestRun.accuracy) * 100).toFixed(1) }}<small>%</small></strong>
+        <strong v-if="bestRun">{{ (Number(bestRun.metrics?.accuracy) * 100).toFixed(1) }}<small>%</small></strong>
         <strong v-else>--<small>%</small></strong>
         <p>{{ bestRun ? `${modelName(bestRun.model)} · ${datasetName(bestRun.dataset)}` : '运行一次分类实验后，这里将显示真实结果' }}</p>
-        <svg class="score-line" viewBox="0 0 460 110" preserveAspectRatio="none">
-          <path class="line-area" d="M0 90 C55 86 60 70 110 75 S180 38 225 55 S300 22 345 36 S410 10 460 18 L460 110 L0 110Z"/>
-          <path class="line-stroke" d="M0 90 C55 86 60 70 110 75 S180 38 225 55 S300 22 345 36 S410 10 460 18"/>
-          <circle cx="460" cy="18" r="4"/>
+        <svg v-if="accuracyRuns.length" class="score-line" viewBox="0 0 460 110" preserveAspectRatio="none" aria-label="最近分类实验的真实准确率">
+          <polyline class="line-stroke" :points="accuracyLine" fill="none"/>
+          <circle v-for="(run,i) in accuracyRuns" :key="run.id" :cx="12+i*436/Math.max(1,accuracyRuns.length-1)" :cy="100-Number(run.metrics?.accuracy)*90" r="3"><title>{{ run.model }} × {{ run.dataset }} · {{ Number(run.metrics?.accuracy).toFixed(3) }}</title></circle>
         </svg>
-        <div class="figure-scale"><span>TRAIN</span><span>EVALUATE</span></div>
+        <div class="figure-scale"><span>最近 {{ accuracyRuns.length }} 条分类运行</span><span>仅供回溯，跨数据集不作排名</span></div>
       </div>
     </section>
 

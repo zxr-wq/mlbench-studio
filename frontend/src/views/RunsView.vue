@@ -4,9 +4,21 @@ import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
 import { algorithms, datasets } from '../data/catalog'
 import { useLabStore } from '../stores/lab'
+import { downloadFile, metricsCsv, metricName } from '../services/exports'
 
 const router = useRouter()
-const { runs } = useLabStore()
+const { runs, importResults, isHydrating } = useLabStore()
+const importMessage=ref('')
+async function importFile(event:Event) {
+  const input=event.target as HTMLInputElement
+  const file=input.files?.[0]; if(!file) return
+  try {
+    if(file.size>30*1024*1024) throw new Error('文件应小于 30MB。')
+    const count=await importResults(await file.text()); importMessage.value=`已成功导入 ${count} 条实验记录。`
+  } catch(error) {importMessage.value=error instanceof Error ? error.message : '导入失败'}
+  input.value=''
+}
+function exportAll(kind:'csv'|'json') { downloadFile(`mlbench-all-results.${kind}`,kind==='csv' ? metricsCsv(filteredRuns.value) : JSON.stringify({schema_version:2,exported_at:new Date().toISOString(),experiments:filteredRuns.value},null,2),kind==='csv' ? 'text/csv;charset=utf-8' : 'application/json') }
 const query = ref('')
 const modelFilter = ref('全部模型')
 
@@ -18,7 +30,7 @@ const filteredRuns = computed(() => runs.value.filter((run) => {
   const matchModel = modelFilter.value === '全部模型' || run.model === modelFilter.value
   return matchQuery && matchModel
 }))
-const label = (run: { primaryMetric?: string }, fallback: string) => run.primaryMetric ?? fallback
+const label = (run: { primaryMetric?: string }, fallback: string) => metricName(run.primaryMetric ?? fallback)
 const value = (run: { primaryValue?: number, accuracy: number }, fallback: number) => Number(run.primaryValue ?? fallback).toFixed(3)
 </script>
 
@@ -28,6 +40,7 @@ const value = (run: { primaryValue?: number, accuracy: number }, fallback: numbe
       <div><span class="overline">EXPERIMENTS / RUNS</span><h1>运行记录</h1><p>筛选、比较并回溯每一次模型实验。</p></div>
       <RouterLink to="/experiments/new" class="button primary"><AppIcon name="plus" :size="16" />新建实验</RouterLink>
     </header>
+    <div class="run-tools"><label class="button ghost import-control">导入结果 JSON<input type="file" accept=".json,application/json" @change="importFile" :disabled="isHydrating"/></label><button class="button ghost" :disabled="isHydrating || !filteredRuns.length" @click="exportAll('json')">备份全部筛选结果</button><button class="button ghost" :disabled="isHydrating || !filteredRuns.length" @click="exportAll('csv')">导出指标 CSV</button><RouterLink class="button ghost" to="/benchmark">进入 Benchmark 对比</RouterLink></div><p class="run-message" role="status">{{ isHydrating ? '正在读取完整实验记录…' : importMessage || '记录保存在此浏览器；更换电脑前请备份完整 JSON，再在新浏览器导入。' }}</p>
 
     <section class="runs-toolbar">
       <label class="search-box"><AppIcon name="search" :size="16" /><input v-model="query" placeholder="搜索实验、模型或数据集" /></label>
@@ -44,7 +57,7 @@ const value = (run: { primaryValue?: number, accuracy: number }, fallback: numbe
         <span><b>{{ modelName(run.model) }}</b></span>
         <span>{{ datasetName(run.dataset) }}</span>
         <span class="metric-cell"><small>{{ label(run, 'accuracy') }}</small>{{ value(run, run.accuracy) }}</span>
-        <span class="metric-cell secondary"><small>{{ run.secondaryMetric ?? 'f1' }}</small>{{ run.secondaryValue?.toFixed(3) ?? run.f1.toFixed(3) }}</span>
+        <span class="metric-cell secondary"><small>{{ run.secondaryMetric ? metricName(run.secondaryMetric) : '—' }}</small>{{ run.secondaryValue?.toFixed(3) ?? '—' }}</span>
         <span>{{ run.duration.toFixed(2) }}s</span>
         <span class="status-label"><i></i>{{ run.status === 'completed' ? '完成' : run.status === 'failed' ? '失败' : '运行中' }}</span>
       </button>

@@ -1,5 +1,5 @@
 import { computed, reactive, ref } from 'vue'
-import { benchmarkClient } from '../services/benchmark'
+import { awaitExperiment, benchmarkClient } from '../services/benchmark'
 import { algorithms, datasets } from '../data/catalog'
 import type { ExperimentConfig, ExperimentResult } from '../types/benchmark'
 
@@ -9,7 +9,7 @@ const RUN_STORE = 'experiment-results'
 const MAX_SAVED_RUNS = 40
 
 const savedRuns = (() => {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') as ExperimentResult[] } catch { return [] as ExperimentResult[] }
+  try { const rows = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'); return Array.isArray(rows) ? rows.filter((row) => row && typeof row.id === 'string' && typeof row.model === 'string') as ExperimentResult[] : [] } catch { return [] as ExperimentResult[] }
 })()
 const runs = ref<ExperimentResult[]>(savedRuns)
 const isRunning = ref(false)
@@ -43,18 +43,20 @@ function openDatabase(): Promise<IDBDatabase> {
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
+    request.onblocked = () => reject(new Error('浏览器数据库被其他页面占用'))
   })
 }
 
 async function saveFullRun(run: ExperimentResult) {
   const database = await openDatabase()
-  await new Promise<void>((resolve, reject) => {
+  try { await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(RUN_STORE, 'readwrite')
-    transaction.objectStore(RUN_STORE).put(run)
+    // Vue proxies cannot be structured-cloned by IndexedDB. Serialize a plain snapshot.
+    transaction.objectStore(RUN_STORE).put(JSON.parse(JSON.stringify(run)))
     transaction.oncomplete = () => resolve()
     transaction.onerror = () => reject(transaction.error)
-  })
-  database.close()
+    transaction.onabort = () => reject(transaction.error ?? new Error('保存中断'))
+  }) } finally { database.close() }
 }
 
 async function hydrateFullRuns() {
@@ -75,14 +77,15 @@ async function hydrateFullRuns() {
     const fullById = new Map(stored.map((run) => [run.id, run]))
     const merged = runs.value.map((run) => fullById.get(run.id) ?? run)
     const known = new Set(merged.map((run) => run.id))
-    runs.value = [...stored.filter((run) => !known.has(run.id)), ...merged]
+    runs.value = [...stored.filter((run) => !known.has(run.id)), ...merged].sort((a,b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))
     saveSummaries(runs.value)
   } catch {
     storageNotice.value = '完整图表记录暂时无法读取，指标摘要仍可正常使用。'
   }
 }
 
-void hydrateFullRuns()
+const isHydrating = ref(true)
+const storageReady = hydrateFullRuns().finally(() => { isHydrating.value = false })
 
 const stats = computed(() => ({
   algorithms: algorithms.length,
@@ -92,10 +95,10 @@ const stats = computed(() => ({
 }))
 
 const defaultConfig = reactive<ExperimentConfig>({
-  dataset: 'breast_cancer',
+  dataset: 'iris',
   split: 'stratified_80_20',
   preprocessing: 'standard_scaler',
-  model: 'svm',
+  model: 'knn',
   kernel: 'rbf',
   c: 1,
   k: 5,
@@ -114,6 +117,7 @@ const defaultConfig = reactive<ExperimentConfig>({
 })
 
 async function runExperiment(config: ExperimentConfig) {
+  await storageReady
   if (isRunning.value) throw new Error('An experiment is already running')
   isRunning.value = true
   storageNotice.value = ''
@@ -133,28 +137,70 @@ async function runExperiment(config: ExperimentConfig) {
       progress.value = update.progress
       lastMessage.value = stageLabels[update.stage] ?? update.stage
     })
-    const serial = runs.value.reduce((largest, run) => {
-      const value = Number(run.id.replace('EXP-', ''))
-      return Number.isFinite(value) ? Math.max(largest, value) : largest
-    }, 0) + 1
-    result.id = `EXP-${String(serial).padStart(3, '0')}`
-    result.createdAt = '刚刚'
-    runs.value = [result, ...runs.value]
-    saveSummaries(runs.value)
-    void saveFullRun(result).catch(() => {
-      storageNotice.value = '实验已完成并保留指标，但完整图表未能写入浏览器数据库；建议下载 JSON。'
-    })
+    result.inputConfig = JSON.parse(JSON.stringify(config))
+    await rememberRun(result)
     progress.value = 100
     lastMessage.value = '实验已完成'
     return result
   } finally {
-    window.setTimeout(() => {
-      isRunning.value = false
-      progress.value = 0
-    }, 300)
+    isRunning.value = false
   }
 }
 
+async function rememberRun(result: ExperimentResult) {
+  if (!result.id.startsWith('EXP-')) result.id = `EXP-${result.backendId ?? result.id}`
+  runs.value = [result, ...runs.value.filter((item) => item.id !== result.id)]
+  saveSummaries(runs.value)
+  try { await saveFullRun(result) } catch {
+    storageNotice.value = '实验已完成，但完整图表未能写入浏览器数据库；请下载完整 JSON。'
+  }
+}
+
+async function importResults(content: string) {
+  await storageReady
+  const payload = JSON.parse(content)
+  const rows = payload.experiments ?? (payload.experiment ? [payload.experiment] : payload)
+  if (!Array.isArray(rows) || !rows.length || rows.length > 500) throw new Error('请导入本平台导出的完整 JSON（1–500 条记录）。')
+  for (const row of rows) {
+    if (!row || !algorithms.some((item) => item.id === row.model) || !datasets.some((item) => item.id === row.dataset)
+      || typeof row.id !== 'string' || row.status !== 'completed' || typeof row.metrics !== 'object' || row.metrics === null
+      || !Number.isFinite(row.duration) || !Number.isFinite(row.accuracy) || !Number.isFinite(row.f1)
+      || !['classification','regression','clustering','dimensionality_reduction'].includes(row.taskType)
+      || !Object.values(row.metrics).every((value) => (Array.isArray(value) ? value : [value]).every((item) => typeof item === 'number' && Number.isFinite(item)))) {
+      throw new Error('文件中存在无效记录，未导入。请使用本平台导出的结果 JSON。')
+    }
+  }
+  for (const row of rows.slice().reverse()) await rememberRun(row)
+  return rows.length
+}
+
+async function deleteRun(id: string) {
+  const database = await openDatabase()
+  await new Promise<void>((resolve,reject) => {
+    const transaction=database.transaction(RUN_STORE,'readwrite'); transaction.objectStore(RUN_STORE).delete(id)
+    transaction.oncomplete=()=>resolve(); transaction.onerror=()=>reject(transaction.error)
+  })
+  database.close()
+  runs.value=runs.value.filter((run)=>run.id!==id); saveSummaries(runs.value)
+}
+
+async function resumePending() {
+  await storageReady
+  let pending: { id:string, config:ExperimentConfig } | undefined
+  try { pending = JSON.parse(localStorage.getItem('mlbench-pending') ?? 'null') } catch { return }
+  if (!pending?.id || isRunning.value) return
+  isRunning.value=true; lastMessage.value='正在恢复上次实验连接'
+  try {
+    const result=await awaitExperiment(pending.id,(update)=>{ progress.value=update.progress; lastMessage.value='正在恢复上次实验 · '+update.stage })
+    result.inputConfig=pending.config; await rememberRun(result)
+    try { localStorage.removeItem('mlbench-pending') } catch { /* Result is already saved. */ }
+  } catch (error) {
+    storageNotice.value=`上次实验暂时无法恢复：${error instanceof Error ? error.message : '连接失败'}。已保存的运行记录不受影响。`
+    if (error instanceof Error && /unknown experiment|404|failed/i.test(error.message)) { try { localStorage.removeItem('mlbench-pending') } catch { /* Best effort. */ } }
+  } finally { isRunning.value=false }
+}
+void resumePending()
+
 export function useLabStore() {
-  return { runs, stats, isRunning, progress, lastMessage, storageNotice, defaultConfig, runExperiment }
+  return { runs, stats, isRunning, isHydrating, progress, lastMessage, storageNotice, defaultConfig, runExperiment, importResults, deleteRun }
 }
