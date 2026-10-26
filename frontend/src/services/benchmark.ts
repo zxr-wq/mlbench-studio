@@ -1,4 +1,4 @@
-import type { BenchmarkClient, ExperimentConfig, ExperimentResult, OverviewStats } from '../types/benchmark'
+import type { BenchmarkClient, ExperimentConfig, ExperimentProgress, ExperimentResult, OverviewStats } from '../types/benchmark'
 
 const apiBase = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '')
 const request = async (path: string, options?: RequestInit) => {
@@ -20,7 +20,7 @@ function makeConfig(config: ExperimentConfig) {
     decision_tree: { max_depth: config.maxDepth },
     random_forest: { n_estimators: config.nEstimators, max_depth: config.maxDepth, random_state: config.seed },
     gradient_boosting: { n_estimators: config.nEstimators, learning_rate: config.learningRate, max_depth: config.maxDepth },
-    kmeans: { k: config.k, random_state: config.seed },
+    kmeans: { k: config.k, random_state: config.seed, n_init: 10, max_iter: 300, tol: 1e-4 },
     pca: { n_components: config.pcaComponents },
   }
   const metrics = config.model === 'kmeans'
@@ -62,39 +62,50 @@ function mapRecord(record: any): ExperimentResult {
     id: record.id, model: result.model, dataset: result.dataset,
     accuracy: Number(metrics.accuracy ?? 0), f1: Number(metrics.f1 ?? 0),
     duration: Number(result.training_time ?? 0) + Number(result.inference_time ?? 0),
+    trainingTime: Number(result.training_time ?? 0), inferenceTime: Number(result.inference_time ?? 0),
     status: record.status, createdAt: '刚刚', taskType: result.task_type,
     implementation: result.implementation, metrics, metricStd: result.metric_std,
-    evaluation: result.evaluation, params: result.params, visualization: result.visualization,
+    evaluation: result.evaluation, config: record.config, params: result.params, visualization: result.visualization,
     primaryMetric, primaryValue: scalarMetric(metrics[primaryMetric]),
     secondaryMetric, secondaryValue: metrics[secondaryMetric] == null ? undefined : scalarMetric(metrics[secondaryMetric]),
   }
 }
 
-async function awaitExperiment(id: string): Promise<ExperimentResult> {
+async function awaitExperiment(id: string, onProgress?: (update: ExperimentProgress) => void): Promise<ExperimentResult> {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const socketUrl = `${apiBase ? apiBase.replace(/^http/, 'ws') : `${protocol}//${window.location.host}`}/api/ws/experiments/${id}`
   return new Promise((resolve, reject) => {
     let settled = false
+    let polling = false
     const socket = new WebSocket(socketUrl)
     const finish = (fn: (value: any) => void, value: any) => {
       if (!settled) { settled = true; socket.close(); fn(value) }
     }
-    socket.onmessage = (event) => {
-      const record = JSON.parse(event.data).experiment
-      if (record.status === 'completed') finish(resolve, mapRecord(record))
-      if (record.status === 'failed') finish(reject, new Error(record.error ?? 'Experiment failed'))
-    }
-    socket.onerror = async () => {
-      try {
-        const poll = async () => {
+    const startPolling = () => {
+      if (polling || settled) return
+      polling = true
+      const poll = async () => {
+        if (settled) return
+        try {
           const record = await request(`/api/experiments/${id}`)
+          onProgress?.({ status: record.status, progress: Number(record.progress ?? 0), stage: String(record.stage ?? '') })
           if (record.status === 'completed') return finish(resolve, mapRecord(record))
           if (record.status === 'failed') return finish(reject, new Error(record.error ?? 'Experiment failed'))
           window.setTimeout(poll, 400)
+        } catch (error) {
+          finish(reject, error)
         }
-        poll()
-      } catch (error) { finish(reject, error) }
+      }
+      void poll()
     }
+    socket.onmessage = (event) => {
+      const record = JSON.parse(event.data).experiment
+      onProgress?.({ status: record.status, progress: Number(record.progress ?? 0), stage: String(record.stage ?? '') })
+      if (record.status === 'completed') finish(resolve, mapRecord(record))
+      if (record.status === 'failed') finish(reject, new Error(record.error ?? 'Experiment failed'))
+    }
+    socket.onerror = startPolling
+    socket.onclose = startPolling
   })
 }
 
@@ -104,9 +115,10 @@ class ApiBenchmarkClient implements BenchmarkClient {
     return { algorithms: algorithms.length, scratchAlgorithms: algorithms.length, datasets: datasets.length, completedRuns: 0 }
   }
   async getRecentRuns(): Promise<ExperimentResult[]> { return [] }
-  async runExperiment(config: ExperimentConfig): Promise<ExperimentResult> {
+  async runExperiment(config: ExperimentConfig, onProgress?: (update: ExperimentProgress) => void): Promise<ExperimentResult> {
     const created = await request('/api/experiments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(makeConfig(config)) })
-    return awaitExperiment(created.id)
+    onProgress?.({ status: created.status, progress: 0, stage: 'queued' })
+    return awaitExperiment(created.id, onProgress)
   }
 }
 

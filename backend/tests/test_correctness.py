@@ -113,6 +113,24 @@ class PcaCorrectnessTest(unittest.TestCase):
         signs[signs == 0] = 1.0
         np.testing.assert_allclose(proj_s * signs, proj_r, atol=1e-7)
 
+    def test_integer_component_metrics_only_describe_retained_dimensions(self):
+        _, X_train, _, _, _ = _prepared("iris")
+        scratch = ModelFactory.create("pca", {"n_components": 2}).fit(X_train)
+        reference = ModelFactory.create("pca", {"n_components": 2}, implementation="sklearn").fit(X_train)
+        self.assertEqual(len(scratch.explained_variance_ratio_), 2)
+        np.testing.assert_allclose(
+            scratch.explained_variance_ratio_,
+            reference.explained_variance_ratio_,
+            atol=1e-8,
+        )
+        self.assertLess(float(scratch.explained_variance_ratio_.sum()), 1.0)
+
+    def test_variance_threshold_reports_the_retained_cumulative_variance(self):
+        _, X_train, _, _, _ = _prepared("wine")
+        scratch = ModelFactory.create("pca", {"n_components": 0.95}).fit(X_train)
+        self.assertEqual(len(scratch.explained_variance_ratio_), scratch.n_components_)
+        self.assertGreaterEqual(float(scratch.explained_variance_ratio_.sum()), 0.95)
+
 
 class MetricsConsistencyTest(unittest.TestCase):
     def test_classification_metrics_match_sklearn(self):

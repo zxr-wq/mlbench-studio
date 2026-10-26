@@ -36,7 +36,7 @@ DEFAULT_PARAMS = {
     "decision_tree": {"max_depth": 5, "min_samples_split": 2, "min_samples_leaf": 1},
     "random_forest": {"n_estimators": 30, "max_depth": 6, "random_state": 42},
     "gradient_boosting": {"n_estimators": 40, "learning_rate": 0.1, "max_depth": 2},
-    "kmeans": None,  # k 依赖数据集类别数，运行时填
+    "kmeans": {"n_init": 10, "max_iter": 300, "tol": 1e-4},  # k 运行时按数据集类别数填
     "pca": {"n_components": 0.95},
 }
 

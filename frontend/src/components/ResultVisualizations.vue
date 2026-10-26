@@ -8,8 +8,10 @@ const palette = ['#268b65', '#3478bd', '#d87a46', '#8d5ca8', '#bd5470', '#a48631
 const classification = computed(() => visual.value.classification)
 const regression = computed(() => visual.value.regression)
 const clustering = computed(() => visual.value.clustering)
+const centroidHistory = computed<any[][]>(() => clustering.value?.centroid_history ?? [])
 const pca = computed(() => visual.value.pca)
 const contributions = computed(() => visual.value.feature_contributions)
+const tree = computed(() => visual.value.tree_structure)
 const loss = computed<number[]>(() => visual.value.loss_curve ?? [])
 const roc = computed(() => classification.value?.roc_curve)
 
@@ -31,7 +33,8 @@ const classBounds = computed(() => classification.value ? {
   x: bounds(classification.value.points, 'x'), y: bounds(classification.value.points, 'y'),
 } : null)
 const clusterBounds = computed(() => clustering.value ? {
-  x: bounds(clustering.value.points, 'x'), y: bounds(clustering.value.points, 'y'),
+  x: bounds([...clustering.value.points, ...centroidHistory.value.flat()], 'x'),
+  y: bounds([...clustering.value.points, ...centroidHistory.value.flat()], 'y'),
 } : null)
 const pcaBounds = computed(() => pca.value ? {
   x: bounds(pca.value.points, 'x'), y: bounds(pca.value.points, 'y'),
@@ -48,6 +51,36 @@ const lossPoints = computed(() => {
   return loss.value.map((value, index) => `${plot(index, 0, loss.value.length - 1, 12, 236)},${plot(value, min, max, 8, 98, true)}`).join(' ')
 })
 const rocPoints = computed(() => roc.value?.points?.map((point: any) => `${28 + 252 * point.fpr},${126 - 114 * point.tpr}`).join(' ') ?? '')
+function centroidPath(index: number) {
+  if (!clusterBounds.value) return ''
+  return centroidHistory.value
+    .filter((step) => step[index])
+    .map((step) => `${plot(step[index].x, clusterBounds.value!.x[0], clusterBounds.value!.x[1], 28, 252)},${plot(step[index].y, clusterBounds.value!.y[0], clusterBounds.value!.y[1], 12, 114, true)}`)
+    .join(' ')
+}
+interface TreePlotNode { id: number, x: number, y: number, parentX?: number, parentY?: number, label: string, detail: string, leaf: boolean }
+const treePlot = computed<TreePlotNode[]>(() => {
+  const nodes: TreePlotNode[] = []
+  let serial = 0
+  const visit = (node: any, depth: number, left: number, right: number, parent?: TreePlotNode) => {
+    if (!node || depth > 3) return
+    const x = (left + right) / 2
+    const values = Array.isArray(node.value) ? node.value.map(Number) : []
+    const predicted = values.length ? values.indexOf(Math.max(...values)) + 1 : 0
+    const leaf = !node.left && !node.right
+    const current: TreePlotNode = {
+      id: serial++, x, y: 35 + depth * 78,
+      parentX: parent?.x, parentY: parent?.y,
+      label: leaf ? `预测 C${predicted}` : `${node.feature} ≤ ${Number(node.threshold).toFixed(2)}`,
+      detail: `${node.samples} 样本 · [${values.join(', ')}]`, leaf,
+    }
+    nodes.push(current)
+    visit(node.left, depth + 1, left, x, current)
+    visit(node.right, depth + 1, x, right, current)
+  }
+  visit(tree.value, 0, 15, 985)
+  return nodes
+})
 </script>
 
 <template>
@@ -102,9 +135,11 @@ const rocPoints = computed(() => roc.value?.points?.map((point: any) => `${28 + 
 
     <div v-if="clustering" class="visual-grid">
       <article class="chart-card wide-chart">
-        <div class="chart-title"><b>聚类二维投影</b><small>仅用于观察；训练过程未使用真实标签</small></div>
+        <div class="chart-title"><b>聚类与质心迭代轨迹</b><small>圆点为样本，折线展示质心逐轮移动</small></div>
         <svg class="scatter-chart" viewBox="0 0 300 155"><path d="M24 8V130H288" class="axis" />
           <circle v-for="(point, index) in clustering.points" :key="index" :cx="plot(point.x, clusterBounds!.x[0], clusterBounds!.x[1], 28, 252)" :cy="plot(point.y, clusterBounds!.y[0], clusterBounds!.y[1], 12, 114, true)" r="3" :fill="palette[point.cluster % palette.length]" fill-opacity=".7" />
+          <polyline v-for="(_, index) in (centroidHistory[0] ?? [])" :key="`trajectory-${index}`" :points="centroidPath(index)" class="centroid-path" :style="{ stroke: palette[index % palette.length] }" />
+          <circle v-for="(point, index) in (centroidHistory[centroidHistory.length - 1] ?? [])" :key="`center-${index}`" :cx="plot(point.x, clusterBounds!.x[0], clusterBounds!.x[1], 28, 252)" :cy="plot(point.y, clusterBounds!.y[0], clusterBounds!.y[1], 12, 114, true)" r="5.2" fill="#fff" :stroke="palette[index % palette.length]" stroke-width="2.4" />
         </svg>
       </article>
       <article class="chart-card"><div class="chart-title"><b>簇规模</b><small>每个簇包含的训练样本数</small></div><div class="vertical-bars"><div v-for="(size, index) in clustering.sizes" :key="index"><i :style="{ height: `${100 * Number(size) / maxOf(clustering.sizes.map(Number))}%`, background: palette[Number(index) % palette.length] }"></i><span>C{{ Number(index) + 1 }}</span><small>{{ size }}</small></div></div></article>
@@ -118,6 +153,20 @@ const rocPoints = computed(() => roc.value?.points?.map((point: any) => `${28 + 
     <div class="visual-grid secondary-visuals" v-if="contributions || loss.length">
       <article v-if="contributions" class="chart-card wide-chart"><div class="chart-title"><b>特征贡献</b><small>{{ contributions.label }} · 仅显示模型真实可获得的特征信息</small></div><div class="feature-bars"><div v-for="item in contributions.items" :key="item.name"><span>{{ item.name }}</span><i><em :style="{ width: `${100 * item.value / maxOf(contributions.items.map((entry: any) => entry.value))}%` }"></em></i><small>{{ item.value.toFixed(3) }}</small></div></div></article>
       <article v-if="loss.length" class="chart-card"><div class="chart-title"><b>训练损失曲线</b><small>损失下降并趋稳，说明训练逐步收敛</small></div><svg class="loss-chart" viewBox="0 0 260 116"><path d="M12 8V106H248" class="axis" /><polyline :points="lossPoints" class="loss-line" /></svg></article>
+    </div>
+
+    <div v-if="tree" class="visual-grid secondary-visuals">
+      <article class="chart-card tree-chart-card">
+        <div class="chart-title"><b>决策树结构</b><small>展示前 4 层；左分支满足条件，右分支不满足</small></div>
+        <svg class="tree-chart" viewBox="0 0 1000 310" role="img" aria-label="决策树前四层结构">
+          <line v-for="node in treePlot.filter((item) => item.parentX != null)" :key="`edge-${node.id}`" :x1="node.parentX" :y1="Number(node.parentY) + 20" :x2="node.x" :y2="node.y - 20" class="tree-edge" />
+          <g v-for="node in treePlot" :key="node.id" :transform="`translate(${node.x}, ${node.y})`">
+            <rect x="-65" y="-21" width="130" height="42" rx="8" :class="['tree-node', { leaf: node.leaf }]" />
+            <text y="-3" class="tree-node-label">{{ node.label }}</text>
+            <text y="12" class="tree-node-detail">{{ node.detail }}</text>
+          </g>
+        </svg>
+      </article>
     </div>
   </section>
 </template>

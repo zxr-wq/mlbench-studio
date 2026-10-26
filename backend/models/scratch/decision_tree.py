@@ -21,10 +21,12 @@ class TreeNode:
 class DecisionTree(BaseModel):
     task_type = "classification"
 
-    def __init__(self, max_depth=None, min_samples_split=2, min_samples_leaf=1):
+    def __init__(self, max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features=None, random_state=None):
         self.max_depth = None if max_depth is None else int(max_depth)
         self.min_samples_split = int(min_samples_split)
         self.min_samples_leaf = int(min_samples_leaf)
+        self.max_features = max_features
+        self.random_state = random_state
 
     def fit(self, X, y=None):
         if y is None:
@@ -32,8 +34,21 @@ class DecisionTree(BaseModel):
         X, y = np.asarray(X, dtype=float), np.asarray(y)
         self.classes_, encoded = np.unique(y, return_inverse=True)
         self.feature_names_ = [f"feature_{index}" for index in range(X.shape[1])]
+        self._rng = np.random.default_rng(self.random_state)
         self.root_ = self._grow(X, encoded, 0)
         return self
+
+    def _candidate_features(self, feature_count):
+        if self.max_features is None:
+            return np.arange(feature_count)
+        if isinstance(self.max_features, float):
+            selected = int(np.ceil(feature_count * self.max_features))
+        elif self.max_features == "sqrt":
+            selected = int(np.sqrt(feature_count))
+        else:
+            selected = int(self.max_features)
+        selected = max(1, min(feature_count, selected))
+        return np.sort(self._rng.choice(feature_count, selected, replace=False))
 
     def _gini(self, y):
         if not len(y): return 0.0
@@ -46,7 +61,7 @@ class DecisionTree(BaseModel):
         if len(np.unique(y)) == 1 or len(y) < self.min_samples_split or (self.max_depth is not None and depth >= self.max_depth):
             return node
         best = (self._gini(y), None, None, None)
-        for feature in range(X.shape[1]):
+        for feature in self._candidate_features(X.shape[1]):
             values = np.unique(X[:, feature])
             thresholds = (values[:-1] + values[1:]) / 2
             for threshold in thresholds:
@@ -71,7 +86,7 @@ class DecisionTree(BaseModel):
         return int(np.argmax(node.value))
 
     def get_params(self):
-        return {"max_depth": self.max_depth, "min_samples_split": self.min_samples_split, "min_samples_leaf": self.min_samples_leaf}
+        return {"max_depth": self.max_depth, "min_samples_split": self.min_samples_split, "min_samples_leaf": self.min_samples_leaf, "max_features": self.max_features, "random_state": self.random_state}
 
     def get_visualization_data(self):
         def export(node):

@@ -1,6 +1,6 @@
 # MLBench Studio
 
-机器学习理论与实践课程项目。当前 `integration/v2` 分支已将前端、统一机器学习核心和 FastAPI/WebSocket 通信层分离。
+机器学习理论与实践课程项目。前端、统一机器学习核心和 FastAPI/WebSocket 通信层相互分离，并通过统一 Config / Result 协议协作。
 
 在线预览：<https://zxr-wq.github.io/mlbench-studio/>
 
@@ -16,6 +16,9 @@
 - 统一 Config / Result 协议、Registry / Factory / Runner
 - 支持固定 80/20、五折交叉验证以及 1/3/5 组随机种子稳定性实验
 - 结果保存均值、标准差、逐折/逐种子明细和总运行耗时
+- 进度状态来自后端实际阶段；历史摘要保存在 localStorage，完整图表保存在 IndexedDB
+- 决策树前四层结构、K-Means 质心轨迹、混淆矩阵、ROC、残差、特征贡献和损失曲线等任务相关可视化
+- 单次实验可下载包含完整配置的 JSON，以及兼容向量指标的 CSV
 - 已接入 10 个 Scratch 算法：Linear Regression、Logistic Regression、KNN、Gaussian NB、SVM、K-Means、PCA、Decision Tree、Random Forest、Gradient Boosting
 
 ## 本地运行
@@ -50,7 +53,10 @@ pnpm dev
 
 Benchmark 以任务类型分组：七个分类模型在 Iris、Wine、Breast Cancer、Digits 上对比；Linear Regression 在 Diabetes 上单独以 MSE/RMSE/MAE/R2 对比；K-Means 与 PCA 使用各自的聚类/降维指标。Scratch 与 sklearn 使用相同划分、随机种子和模型参数。`validate_datasets` 会为 8 个内置数据集各跑一条三随机种子的代表性链路，可用于录屏前快速验收。
 
+Scratch SVM 用教学版核方法实现，在 Breast Cancer、Digits 或多折重复实验上明显慢于 sklearn；录屏快速演示建议优先使用 Iris、Moons，或选择 sklearn 对照实现。
+
 实现与接口说明见 [B 算法与集成说明](docs/B_ALGORITHMS_AND_INTEGRATION.md)。
+提交前检查见 [最终提交检查清单](docs/FINAL_SUBMISSION_CHECKLIST.md)。
 
 推送到 `main` 分支后，GitHub Actions 会自动构建并发布 GitHub Pages。
 

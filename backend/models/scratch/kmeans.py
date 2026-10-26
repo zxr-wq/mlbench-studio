@@ -32,12 +32,12 @@ class KMeans(BaseModel):
 
     参数::
 
-        {"k": 3, "random_state": 42, "n_init": 8, "max_iter": 300, "tol": 1e-6}
+        {"k": 3, "random_state": 42, "n_init": 10, "max_iter": 300, "tol": 1e-4}
     """
 
     task_type = "clustering"
 
-    def __init__(self, k=3, random_state=42, n_init=8, max_iter=300, tol=1e-6):
+    def __init__(self, k=3, random_state=42, n_init=10, max_iter=300, tol=1e-4):
         self.k = int(k)
         self.random_state = int(random_state)
         self.n_init = int(n_init)

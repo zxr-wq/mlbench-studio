@@ -2,14 +2,19 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
-import { datasets } from '../data/catalog'
+import { algorithms, datasets } from '../data/catalog'
 import { useLabStore } from '../stores/lab'
+import type { ExperimentResult } from '../types/benchmark'
 
 const { runs, stats } = useLabStore()
 const bestRun = computed(() => [...runs.value]
   .filter((run) => (run.taskType ?? 'classification') === 'classification')
   .sort((a, b) => (b.primaryValue ?? b.accuracy) - (a.primaryValue ?? a.accuracy))[0])
 const recentRuns = computed(() => runs.value.slice(0, 4))
+const metricLabel = (metric?: string) => ({ accuracy: 'Accuracy', f1: 'Macro F1', r2: 'R²', rmse: 'RMSE', silhouette_score: 'Silhouette', inertia: 'Inertia', cumulative_explained_variance: '累计解释方差' }[metric ?? 'accuracy'] ?? metric ?? '主要指标')
+const metricValue = (run: ExperimentResult) => Number(run.primaryValue ?? run.accuracy).toFixed(3)
+const modelName = (id: string) => algorithms.find((item) => item.id === id)?.name ?? id
+const datasetName = (id: string) => datasets.find((item) => item.id === id)?.name ?? id
 </script>
 
 <template>
@@ -34,7 +39,7 @@ const recentRuns = computed(() => runs.value.slice(0, 4))
         </div>
         <strong v-if="bestRun">{{ ((bestRun.primaryValue ?? bestRun.accuracy) * 100).toFixed(1) }}<small>%</small></strong>
         <strong v-else>--<small>%</small></strong>
-        <p>{{ bestRun ? `${bestRun.model} · ${bestRun.dataset}` : '运行一次分类实验后，这里将显示真实结果' }}</p>
+        <p>{{ bestRun ? `${modelName(bestRun.model)} · ${datasetName(bestRun.dataset)}` : '运行一次分类实验后，这里将显示真实结果' }}</p>
         <svg class="score-line" viewBox="0 0 460 110" preserveAspectRatio="none">
           <path class="line-area" d="M0 90 C55 86 60 70 110 75 S180 38 225 55 S300 22 345 36 S410 10 460 18 L460 110 L0 110Z"/>
           <path class="line-stroke" d="M0 90 C55 86 60 70 110 75 S180 38 225 55 S300 22 345 36 S410 10 460 18"/>
@@ -60,8 +65,8 @@ const recentRuns = computed(() => runs.value.slice(0, 4))
         <div class="recent-list">
           <RouterLink v-for="run in recentRuns" :key="run.id" :to="`/runs/${run.id}`" class="recent-row">
             <span class="run-state"><i></i></span>
-            <span class="run-name"><b>{{ run.id }}</b><small>{{ run.model }} on {{ run.dataset }}</small></span>
-            <span class="run-metric"><small>Accuracy</small><b>{{ run.accuracy.toFixed(3) }}</b></span>
+            <span class="run-name"><b>{{ run.id }}</b><small>{{ modelName(run.model) }} · {{ datasetName(run.dataset) }}</small></span>
+            <span class="run-metric"><small>{{ metricLabel(run.primaryMetric) }}</small><b>{{ metricValue(run) }}</b></span>
             <span class="run-time"><small>{{ run.createdAt }}</small><b>{{ run.duration.toFixed(2) }}s</b></span>
             <AppIcon name="arrow" :size="15" />
           </RouterLink>

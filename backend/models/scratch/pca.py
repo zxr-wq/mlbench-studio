@@ -29,6 +29,7 @@ class PCA(BaseModel):
         self.components_ = None
         self.explained_variance_ = None
         self.explained_variance_ratio_ = None
+        self.total_explained_variance_ratio_ = None
         self.n_components_ = 0
         self._fit_X = None
 
@@ -45,12 +46,13 @@ class PCA(BaseModel):
         eigenvectors = eigenvectors[:, order]
 
         total = eigenvalues.sum()
-        self.explained_variance_ratio_ = eigenvalues / total if total > 0 else np.zeros(d)
+        full_ratios = eigenvalues / total if total > 0 else np.zeros(d)
+        self.total_explained_variance_ratio_ = full_ratios
 
         if self.n_components is None:
             k = d
         elif isinstance(self.n_components, float) and 0 < self.n_components < 1:
-            cumulative = np.cumsum(self.explained_variance_ratio_)
+            cumulative = np.cumsum(full_ratios)
             k = int(np.searchsorted(cumulative, self.n_components) + 1)
         else:
             k = int(self.n_components)
@@ -58,6 +60,10 @@ class PCA(BaseModel):
 
         self.components_ = eigenvectors[:, : self.n_components_].T
         self.explained_variance_ = eigenvalues[: self.n_components_]
+        # Match sklearn's contract: ratios describe only the components that
+        # the fitted model actually retained. The denominator remains the
+        # variance of every original feature, so the sum may correctly be < 1.
+        self.explained_variance_ratio_ = full_ratios[: self.n_components_]
         return self
 
     def transform(self, X):

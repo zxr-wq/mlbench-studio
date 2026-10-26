@@ -24,23 +24,24 @@ class RandomForest(BaseModel):
         X, y = np.asarray(X, dtype=float), np.asarray(y)
         self.classes_ = np.unique(y)
         rng = np.random.default_rng(self.random_state)
-        feature_count = X.shape[1]
-        if self.max_features is None: selected_count = max(1, int(np.sqrt(feature_count)))
-        elif isinstance(self.max_features, float): selected_count = max(1, min(feature_count, int(np.ceil(feature_count * self.max_features))))
-        else: selected_count = max(1, min(feature_count, int(self.max_features)))
-        self.trees_, self.feature_subsets_ = [], []
+        max_features = "sqrt" if self.max_features is None else self.max_features
+        self.trees_ = []
         for _ in range(self.n_estimators):
             rows = rng.integers(0, len(X), len(X))
-            features = np.sort(rng.choice(feature_count, selected_count, replace=False))
-            tree = DecisionTree(self.max_depth, self.min_samples_split, self.min_samples_leaf).fit(X[rows][:, features], y[rows])
+            tree = DecisionTree(
+                self.max_depth,
+                self.min_samples_split,
+                self.min_samples_leaf,
+                max_features=max_features,
+                random_state=int(rng.integers(0, np.iinfo(np.int32).max)),
+            ).fit(X[rows], y[rows])
             self.trees_.append(tree)
-            self.feature_subsets_.append(features)
         return self
 
     def predict(self, X):
         if not hasattr(self, "trees_"): raise RuntimeError("fit must be called before predict")
         X = np.asarray(X, dtype=float)
-        votes = np.asarray([tree.predict(X[:, features]) for tree, features in zip(self.trees_, self.feature_subsets_)])
+        votes = np.asarray([tree.predict(X) for tree in self.trees_])
         return np.asarray([self.classes_[np.argmax([(column == label).sum() for label in self.classes_])] for column in votes.T])
 
     def get_params(self):

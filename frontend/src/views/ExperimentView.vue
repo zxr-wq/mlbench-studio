@@ -8,7 +8,7 @@ import type { ExperimentConfig } from '../types/benchmark'
 
 const route = useRoute()
 const router = useRouter()
-const { defaultConfig, isRunning, progress, lastMessage, runExperiment } = useLabStore()
+const { defaultConfig, isRunning, progress, lastMessage, storageNotice, runExperiment } = useLabStore()
 const step = ref(1)
 const errorMessage = ref('')
 const config = reactive<ExperimentConfig>({ ...defaultConfig, metrics: [...defaultConfig.metrics] })
@@ -62,6 +62,12 @@ watch(taskType, (task) => {
 watch(() => config.dataset, () => {
   if (isRegressionDataset() && config.model !== 'linear_regression') config.model = 'linear_regression'
   if (!isRegressionDataset() && config.model === 'linear_regression') config.model = 'svm'
+})
+
+watch(canUseRocAuc, (supported) => {
+  if (!supported && config.metrics.includes('roc_auc')) {
+    config.metrics = config.metrics.filter((metric) => metric !== 'roc_auc')
+  }
 })
 
 function toggleMetric(metric: string) {
@@ -184,7 +190,7 @@ onMounted(() => {
       </section>
 
       <footer class="builder-actions">
-        <p v-if="errorMessage" class="experiment-error">{{ errorMessage }}<small>如果提示无法连接，请双击项目根目录的“启动本地实验台.bat”。</small></p>
+        <p v-if="errorMessage || storageNotice" class="experiment-error" :class="{ notice: !errorMessage }">{{ errorMessage || storageNotice }}<small v-if="errorMessage">如果提示无法连接，请双击项目根目录的“启动本地实验台.bat”。</small></p>
         <button class="button ghost" :disabled="step === 1" @click="step -= 1">上一步</button>
         <button v-if="step < 3" class="button primary" @click="step += 1">继续 <AppIcon name="arrow" :size="15" /></button>
         <button v-else class="button primary" :disabled="isRunning" @click="submit"><AppIcon name="flask" :size="15" />{{ isRunning ? '实验运行中' : '运行实验' }}</button>

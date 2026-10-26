@@ -38,6 +38,8 @@ export interface ExperimentResult {
   accuracy: number
   f1: number
   duration: number
+  trainingTime?: number
+  inferenceTime?: number
   status: RunStatus
   createdAt: string
   taskType?: string
@@ -45,12 +47,19 @@ export interface ExperimentResult {
   metrics?: Record<string, number | number[]>
   metricStd?: Record<string, number | number[]>
   evaluation?: EvaluationSummary
+  config?: Record<string, unknown>
   params?: Record<string, unknown>
   visualization?: Record<string, unknown>
   primaryMetric?: string
   primaryValue?: number
   secondaryMetric?: string
   secondaryValue?: number
+}
+
+export interface ExperimentProgress {
+  status: string
+  progress: number
+  stage: string
 }
 
 export interface OverviewStats {
@@ -63,5 +72,5 @@ export interface OverviewStats {
 export interface BenchmarkClient {
   getOverview(): Promise<OverviewStats>
   getRecentRuns(): Promise<ExperimentResult[]>
-  runExperiment(config: ExperimentConfig): Promise<ExperimentResult>
+  runExperiment(config: ExperimentConfig, onProgress?: (update: ExperimentProgress) => void): Promise<ExperimentResult>
 }

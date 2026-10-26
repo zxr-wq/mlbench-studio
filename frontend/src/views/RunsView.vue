@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppIcon from '../components/AppIcon.vue'
+import { algorithms, datasets } from '../data/catalog'
 import { useLabStore } from '../stores/lab'
 
 const router = useRouter()
@@ -10,8 +11,10 @@ const query = ref('')
 const modelFilter = ref('全部模型')
 
 const models = computed(() => ['全部模型', ...new Set(runs.value.map((run) => run.model))])
+const modelName = (id: string) => algorithms.find((item) => item.id === id)?.name ?? id
+const datasetName = (id: string) => datasets.find((item) => item.id === id)?.name ?? id
 const filteredRuns = computed(() => runs.value.filter((run) => {
-  const matchQuery = `${run.id} ${run.model} ${run.dataset}`.toLowerCase().includes(query.value.toLowerCase())
+  const matchQuery = `${run.id} ${run.model} ${modelName(run.model)} ${run.dataset} ${datasetName(run.dataset)}`.toLowerCase().includes(query.value.toLowerCase())
   const matchModel = modelFilter.value === '全部模型' || run.model === modelFilter.value
   return matchQuery && matchModel
 }))
@@ -28,7 +31,7 @@ const value = (run: { primaryValue?: number, accuracy: number }, fallback: numbe
 
     <section class="runs-toolbar">
       <label class="search-box"><AppIcon name="search" :size="16" /><input v-model="query" placeholder="搜索实验、模型或数据集" /></label>
-      <select v-model="modelFilter"><option v-for="model in models" :key="model">{{ model }}</option></select>
+      <select v-model="modelFilter"><option v-for="model in models" :key="model" :value="model">{{ model === '全部模型' ? model : modelName(model) }}</option></select>
       <span class="row-count">{{ filteredRuns.length }} runs</span>
     </section>
 
@@ -38,8 +41,8 @@ const value = (run: { primaryValue?: number, accuracy: number }, fallback: numbe
       </div>
       <button v-for="run in filteredRuns" :key="run.id" class="sheet-row" @click="router.push(`/runs/${run.id}`)">
         <span class="run-cell"><i></i><b>{{ run.id }}</b><small>{{ run.createdAt }}</small></span>
-        <span><b>{{ run.model }}</b></span>
-        <span>{{ run.dataset }}</span>
+        <span><b>{{ modelName(run.model) }}</b></span>
+        <span>{{ datasetName(run.dataset) }}</span>
         <span class="metric-cell"><small>{{ label(run, 'accuracy') }}</small>{{ value(run, run.accuracy) }}</span>
         <span class="metric-cell secondary"><small>{{ run.secondaryMetric ?? 'f1' }}</small>{{ run.secondaryValue?.toFixed(3) ?? run.f1.toFixed(3) }}</span>
         <span>{{ run.duration.toFixed(2) }}s</span>

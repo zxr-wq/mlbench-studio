@@ -31,3 +31,25 @@ def test_knn_and_naive_bayes_match_the_shared_interface():
         assert len(model.predict(X[:5])) == 5
         assert isinstance(model.get_params(), dict)
         assert isinstance(model.get_visualization_data(), dict)
+
+
+def test_random_forest_samples_candidate_features_at_each_node():
+    X, y = load_iris(return_X_y=True)
+    forest = ModelFactory.create(
+        "random_forest", {"n_estimators": 6, "max_depth": 4, "random_state": 42}
+    ).fit(X, y)
+    assert not hasattr(forest, "feature_subsets_")
+    assert all(tree.max_features == "sqrt" for tree in forest.trees_)
+    used_features = {
+        node.feature
+        for tree in forest.trees_
+        for node in _walk(tree.root_)
+        if node.feature is not None
+    }
+    assert used_features
+
+
+def _walk(node):
+    if node is None:
+        return []
+    return [node, *_walk(node.left), *_walk(node.right)]

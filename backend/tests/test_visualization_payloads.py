@@ -24,6 +24,14 @@ def test_classification_payload_contains_real_evaluation_charts():
     json.dumps(result)
 
 
+def test_decision_tree_payload_contains_dataset_labelled_structure():
+    result = run("decision_tree", "iris", {"max_depth": 3})
+    tree = result["visualization"]["tree_structure"]
+    assert tree["samples"] == 120
+    assert tree["feature"] in result["visualization"]["feature_names"]
+    assert tree["left"] is not None and tree["right"] is not None
+
+
 def test_regression_payload_contains_fit_and_residual_charts():
     result = run("linear_regression", "diabetes")
     charts = result["visualization"]["regression"]
@@ -37,7 +45,10 @@ def test_unsupervised_payloads_are_task_appropriate():
     cluster = run("kmeans", "iris", {"k": 3, "n_init": 2})
     pca = run("pca", "iris", {"n_components": 2})
     assert len(cluster["visualization"]["clustering"]["points"]) == 120
+    assert len(cluster["visualization"]["clustering"]["centroid_history"]) >= 2
+    assert len(cluster["visualization"]["clustering"]["centroid_history"][0]) == 3
     assert len(pca["visualization"]["pca"]["points"]) == 30
+    assert len(pca["metrics"]["explained_variance_ratio"]) == 2
     json.dumps(cluster)
     json.dumps(pca)
 

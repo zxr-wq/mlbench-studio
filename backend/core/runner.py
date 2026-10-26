@@ -162,6 +162,26 @@ def _tree_feature_usage(node, scores):
     _tree_feature_usage(getattr(node, "right", None), scores)
 
 
+def _named_tree(node, feature_names):
+    """Convert the Scratch tree export into a compact, dataset-labelled tree."""
+    if not isinstance(node, dict) or "value" not in node:
+        return None
+    feature = node.get("feature")
+    if isinstance(feature, str) and feature.startswith("feature_"):
+        try:
+            feature = str(feature_names[int(feature.removeprefix("feature_"))])
+        except (ValueError, IndexError):
+            pass
+    return {
+        "feature": feature,
+        "threshold": node.get("threshold"),
+        "samples": node.get("samples", 0),
+        "value": node.get("value", []),
+        "left": _named_tree(node.get("left"), feature_names),
+        "right": _named_tree(node.get("right"), feature_names),
+    }
+
+
 def _feature_contributions(model, feature_names):
     """Return a truthful, model-dependent feature summary when one exists."""
     scores = np.zeros(len(feature_names), dtype=float)
@@ -178,10 +198,10 @@ def _feature_contributions(model, feature_names):
     elif hasattr(model, "root_"):
         _tree_feature_usage(model.root_, scores)
         label = "tree split count"
-    elif hasattr(model, "feature_subsets_"):
-        for subset in model.feature_subsets_:
-            scores[np.asarray(subset, dtype=int)] += 1
-        label = "forest feature usage"
+    elif hasattr(model, "trees_") and model.__class__.__name__ == "RandomForest":
+        for tree in model.trees_:
+            _tree_feature_usage(tree.root_, scores)
+        label = "forest split count"
     elif hasattr(model, "trees_") and model.__class__.__name__ == "GradientBoosting":
         for stage in model.trees_:
             for tree in stage:
@@ -239,6 +259,9 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
         contribution = _feature_contributions(model, bundle["feature_names"])
         if contribution:
             payload["feature_contributions"] = contribution
+        tree_structure = _named_tree(raw, bundle["feature_names"])
+        if tree_structure:
+            payload["tree_structure"] = tree_structure
     elif task_type == "regression":
         prediction = model.predict(X_test)
         residuals = np.asarray(y_test, dtype=float) - np.asarray(prediction, dtype=float)
@@ -253,14 +276,30 @@ def _standard_visualization(task_type, model, bundle, X_train, X_test, y_train, 
         if contribution:
             payload["feature_contributions"] = contribution
     elif task_type == "clustering":
-        projection = _project_2d(X_train)
+        center = np.asarray(X_train, dtype=float).mean(axis=0)
+        _, _, vectors = np.linalg.svd(np.asarray(X_train, dtype=float) - center, full_matrices=False)
+        basis = vectors[: min(2, X_train.shape[1])]
+        projection = (np.asarray(X_train, dtype=float) - center) @ basis.T
+        if projection.shape[1] == 1:
+            projection = np.column_stack([projection[:, 0], np.zeros(len(projection))])
         labels = np.asarray(model.labels_, dtype=int)
+        raw_history = raw.get("centroid_history", []) if isinstance(raw, dict) else []
+        centroid_history = []
+        for step in raw_history:
+            projected = (np.asarray(step, dtype=float) - center) @ basis.T
+            if projected.shape[1] == 1:
+                projected = np.column_stack([projected[:, 0], np.zeros(len(projected))])
+            centroid_history.append([
+                {"x": round(float(row[0]), 5), "y": round(float(row[1]), 5)}
+                for row in projected
+            ])
         payload["clustering"] = {
             "points": [
                 {"x": round(float(x), 5), "y": round(float(y), 5), "cluster": int(label)}
                 for (x, y), label in zip(projection, labels)
             ],
             "sizes": [int((labels == index).sum()) for index in range(int(labels.max()) + 1)],
+            "centroid_history": centroid_history,
         }
     else:
         projection = model.transform(X_test)
