@@ -27,6 +27,13 @@
 .chart-controls label { display:flex; align-items:center; gap:8px; }
 .chart-controls select,.chart-controls input[type=number] { max-width:100%; min-height:32px; padding:5px; border:1px solid #d1d5c8; border-radius:4px; background:#fafaf5; color:#414b39; }
 .chart-controls input[type=range] { width:130px; accent-color:#536f52; }
+.sample-navigator { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; min-height:38px; margin:0 0 14px; color:#525e48; font-size:12px; }
+.sample-navigator button { min-height:32px; padding:5px 10px; border:1px solid #d1d5c8; border-radius:5px; color:#515d45; background:#f6f5ee; }
+.sample-navigator button:disabled { opacity:.4; cursor:default; }
+.sample-navigator button:hover:not(:disabled) { color:#fff; background:#536f52; }
+.sample-navigator label { display:flex; align-items:center; gap:6px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.sample-navigator input { width:56px; min-height:32px; padding:4px 5px; border:1px solid #d1d5c8; border-radius:4px; text-align:center; color:#414b39; background:#fafaf5; }
+.sample-label { flex-basis:100%; color:#65705d; }
 .matrix-scroll,.tree-scroll { max-width:100%; overflow-x:auto; scrollbar-width:thin; scrollbar-color:#a6af96 #eeeee7; }
 .matrix-svg { display:block; width:100%; max-height:360px; stroke:none; }
 .tree-svg { display:block; width:100%; stroke:none; }
@@ -78,8 +85,12 @@
 .benchmark-filters { margin-top:24px; padding:16px; background:#eeeee5; border-radius:6px; }
 .benchmark-matrix { overflow-x:auto; margin-top:18px; }
 .benchmark-table { width:100%; min-width:650px; border-collapse:separate; border-spacing:5px; font-size:12px; }
-.benchmark-table th { padding:10px; font-weight:600; color:#637051; text-align:left; }
-.benchmark-table td { border-radius:5px; padding:0; text-align:center; }
+.benchmark-table th { padding:10px; font-weight:600; color:#637051; text-align:center; vertical-align:middle; }
+.benchmark-table td { border-radius:5px; padding:0; text-align:center; vertical-align:middle; font-variant-numeric:tabular-nums; }
+.benchmark-table tbody th, .benchmark-table thead th:first-child { text-align:left; }
+.evaluation-details .benchmark-table { table-layout:fixed; border-spacing:0; }
+.evaluation-details .benchmark-table th, .evaluation-details .benchmark-table td { padding:12px 10px; text-align:center; }
+.evaluation-details .benchmark-table thead th:first-child { text-align:center; }
 .benchmark-table td button { width:100%; min-height:64px; border:0; color:inherit; background:transparent; padding:10px; border-radius:5px; font-variant-numeric:tabular-nums; }
 .benchmark-table td button:disabled { cursor:default; }
 .benchmark-table td strong { font-size:19px; font-weight:600; display:block; }
